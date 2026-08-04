@@ -23,7 +23,7 @@
 **1. 创建并绑定 KV**
 - 登录 Cloudflare 控制台 → **Workers & Pages** → 左侧 **KV** → 新建 namespace（如 `chuyi-sync`）
 - 进入本项目的 Pages 设置 → **Settings → Functions → KV namespace bindings** → 添加绑定：
-  - Variable name 填 **`SYNC_KV`**（必须与代码一致）
+  - Variable name 填 **`studybench_sync`**（必须与代码一致）
   - KV namespace 选刚创建的 `chuyi-sync`
 
 **2. 使用**

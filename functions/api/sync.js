@@ -1,5 +1,5 @@
 // Cloudflare Pages Function — 跨设备同步中转
-// KV 绑定名：SYNC_KV（在 Cloudflare Pages 后台 Settings → Functions → KV namespace bindings 添加）
+// KV 绑定名：studybench_sync（在 Cloudflare Pages 后台 Settings → Functions → KV namespace bindings 添加）
 //
 // GET  /api/sync?code=XXXX        -> { lm:number, data:object } 或 404
 // POST /api/sync  body {code,lm,data} -> { ok:true, lm } 或 409（云端已有更新的数据）
@@ -31,7 +31,7 @@ export async function onRequestGet({ request, env }) {
   const code = url.searchParams.get('code') || '';
   if (!validCode(code)) return jsonResponse({ error: 'invalid code' }, 400);
   const key = await sha256Hex(code);
-  const raw = await env.SYNC_KV.get(key);
+  const raw = await env.studybench_sync.get(key);
   if (!raw) return jsonResponse({ error: 'not found' }, 404);
   return new Response(raw, {
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
@@ -53,7 +53,7 @@ export async function onRequestPost({ request, env }) {
   if (!data || typeof data !== 'object') return jsonResponse({ error: 'invalid data' }, 400);
 
   const key = await sha256Hex(code);
-  const kv = env.SYNC_KV;
+  const kv = env.studybench_sync;
   const existing = await kv.get(key);
   if (existing) {
     try {
