@@ -49,9 +49,12 @@
 - 部署后按上文「跨设备同步」绑定 KV（Variable name 必须填 `studybench_sync`）
 
 **方式二：本地命令行（可固化绑定，便于复现）**
-- 仓库根目录已提供 `wrangler.toml`，把其中 `id` 改成你的 KV namespace ID
 - 安装并登录：`npm i -g wrangler && wrangler login`
 - 预览：`wrangler pages dev .`
 - 部署：`wrangler pages deploy .`
+- KV 绑定仍走 Cloudflare 后台（同方式一），与 `wrangler.toml` 无关。
+  若想在 toml 里固化，须新增一个 `[[kv_namespaces]]` 块且 `id` 填**真实**的十六进制 namespace ID，
+  切勿保留 `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` 这类占位符，否则 Pages 构建会报
+  `Error 8000022: Invalid KV namespace ID` 导致部署失败。
 
 > 无论哪种方式，**KV 绑定名都必须是 `studybench_sync`**，否则 `functions/api/sync.js` 读取不到会报错。修改绑定后需重新部署一次。
