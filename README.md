@@ -1,4 +1,4 @@
-# 初一学习台 · 初中三年个人工作台
+# 初中学习台 · 初中三年个人工作台
 
 一个**单文件 HTML** 的个人学习工作台，面向初中学生（初一至初三），由父亲为孩子搭建。
 涵盖作业登记、背诵记忆、错题本、成就成长四大模块，支持年级/册全局切换。
@@ -21,10 +21,10 @@
 本站点支持通过 Cloudflare KV 做跨设备同步。同步逻辑在 `functions/api/sync.js`（Pages Functions），需先在 Cloudflare 后台绑定一个 KV namespace。
 
 **1. 创建并绑定 KV**
-- 登录 Cloudflare 控制台 → **Workers & Pages** → 左侧 **KV** → 新建 namespace（如 `chuyi-sync`）
+- 登录 Cloudflare 控制台 → **Workers & Pages** → 左侧 **KV** → 新建 namespace（如 `chuzhong-sync`）
 - 进入本项目的 Pages 设置 → **Settings → Functions → KV namespace bindings** → 添加绑定：
   - Variable name 填 **`studybench_sync`**（必须与代码一致）
-  - KV namespace 选刚创建的 `chuyi-sync`
+  - KV namespace 选刚创建的 `chuzhong-sync`
 
 **2. 使用**
 - 重新部署一次（Push 后会自动触发）后，打开站点 → 左下角「系统设置与数据」→「云同步」

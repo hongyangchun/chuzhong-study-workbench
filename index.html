@@ -1816,7 +1816,7 @@
     // ------------------------------------------------------------------
     // 4. 全局数据存储结构与初始化
     // ------------------------------------------------------------------
-    const STORAGE_KEY = "wb_chuyi_data";
+    const STORAGE_KEY = "wb_chuzhong_data";
 
     function getTomorrowDateStr() {
       const d = new Date();
@@ -3005,7 +3005,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `chuyi_workbench_backup_${getTodayDateStr()}.json`;
+      a.download = `chuzhong_workbench_backup_${getTodayDateStr()}.json`;
       a.click();
       URL.revokeObjectURL(url);
     }
