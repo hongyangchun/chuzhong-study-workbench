@@ -1289,6 +1289,15 @@
         <div class="card">
           <p style="margin-bottom:14px; font-size:12px; color:var(--text-sub);">以下内容跟随顶部所选年级自动切换，无需在此单独设置。</p>
 
+          <div class="card" style="background:linear-gradient(135deg,#f0f7f4,#e8f1ec);">
+            <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <span>🧠 艾宾浩斯遗忘曲线 · 复习科学</span>
+              <span id="ebbinghaus-stat" style="font-size:13px; color:var(--primary-green); font-weight:700;"></span>
+            </div>
+            <div id="ebbinghaus-chart" style="width:100%;"></div>
+            <p style="font-size:12px; color:var(--text-sub); margin-top:8px;">在遗忘临界点前（第 1 / 3 / 7 天）及时复习，记忆留存率会被重新拉回高位；三轮过关即「毕业」，进入长期记忆。</p>
+          </div>
+
           <div class="memory-tab-header">
             <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文背诵 (<span id="memPoetryCount">0</span>篇)</button>
             <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">英语课标词汇 (<span id="memWordCount">0</span>词卡片)</button>
@@ -1985,8 +1994,64 @@
       renderActiveProjects();
       renderPoetryList();
       renderWordView();
+      renderEbbinghausChart();
       renderErrorList();
       updateBadges();
+    }
+
+    // 艾宾浩斯遗忘曲线（内联 SVG，零依赖）：经典衰减曲线 + 1/3/7 天复习标记 + 实时待复习统计
+    function renderEbbinghausChart() {
+      const c = document.getElementById('ebbinghaus-chart');
+      if (!c) return;
+
+      // 实时统计：今日待复习（已有进度 + 未毕业 + nextReview<=今天），跨全部册
+      const today = getTodayDateStr();
+      let duePoetry = 0, dueWord = 0;
+      if (appData.poetryMemory) Object.values(appData.poetryMemory).forEach(m => { if (m && !m.graduated && m.nextReview <= today) duePoetry++; });
+      if (appData.wordMemory) Object.values(appData.wordMemory).forEach(m => { if (m && !m.graduated && m.nextReview <= today) dueWord++; });
+      const statEl = document.getElementById('ebbinghaus-stat');
+      if (statEl) statEl.innerText = `今日待复习：诗词 ${duePoetry} 篇 · 词汇 ${dueWord} 词`;
+
+      // 画布参数
+      const W = 680, H = 240, ml = 42, mr = 16, mt = 20, mb = 38;
+      const pw = W - ml - mr, ph = H - mt - mb;
+      const maxDay = 30;
+      const xFor = d => ml + (d / maxDay) * pw;
+      const yFor = p => mt + (1 - p / 100) * ph;
+      const R = t => 100 / (1 + t / 0.55); // 幂律衰减，形似经典遗忘曲线
+
+      // 衰减曲线采样
+      let path = '';
+      for (let d = 0; d <= maxDay; d += 0.5) {
+        path += (d === 0 ? 'M' : 'L') + xFor(d).toFixed(1) + ' ' + yFor(R(d)).toFixed(1) + ' ';
+      }
+
+      // 复习标记（与记忆算法一致：1 / 3 / 7 天三轮）
+      const reviews = [1, 3, 7];
+      let markers = '';
+      reviews.forEach((d, i) => {
+        const x = xFor(d);
+        markers += `<line x1="${x}" y1="${mt}" x2="${x}" y2="${mt + ph}" stroke="#E87A5D" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.7"/>`;
+        markers += `<circle cx="${x}" cy="${mt + 6}" r="4" fill="#E87A5D"/>`;
+        markers += `<text x="${x}" y="${mt - 4}" font-size="10" fill="#B5563E" text-anchor="middle">第${i + 1}轮</text>`;
+      });
+
+      const axis = `
+        <line x1="${ml}" y1="${mt}" x2="${ml}" y2="${mt + ph}" stroke="#ccc" stroke-width="1"/>
+        <line x1="${ml}" y1="${mt + ph}" x2="${ml + pw}" y2="${mt + ph}" stroke="#ccc" stroke-width="1"/>
+        <text x="${ml}" y="${mt - 6}" font-size="10" fill="#667C71">100%</text>
+        <text x="${ml}" y="${mt + ph + 14}" font-size="10" fill="#667C71">0</text>
+        <text x="${ml + pw}" y="${mt + ph + 14}" font-size="10" fill="#667C71" text-anchor="end">${maxDay}天</text>
+        <text x="${ml + pw / 2}" y="${H - 4}" font-size="11" fill="#667C71" text-anchor="middle">天数 →</text>`;
+      const grid = `<line x1="${ml}" y1="${yFor(50)}" x2="${ml + pw}" y2="${yFor(50)}" stroke="#eee" stroke-width="1"/>`;
+
+      c.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block; max-height:260px;">
+        ${grid}
+        ${axis}
+        <path d="${path}" fill="none" stroke="#E87A5D" stroke-width="2.5"/>
+        <text x="${xFor(0) + 4}" y="${yFor(R(0)) - 8}" font-size="10" fill="#E87A5D">记忆留存率</text>
+        ${markers}
+      </svg>`;
     }
 
     // 更新红点 Badge
