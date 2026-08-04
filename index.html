@@ -1277,18 +1277,6 @@
         <div class="card">
           <div class="homework-controls">
             <div id="hw-subject-filters" class="filter-group"></div>
-            <div class="filter-group" style="margin-top:10px;">
-              <span style="font-size:13px; color:var(--text-sub); align-self:center;">学年：</span>
-              <select id="hw-grade-filter" class="form-control" style="width:auto;" onchange="filterHwGrade(this.value)">
-                <option value="all">全部学年</option>
-                <option value="7上">初一上</option>
-                <option value="7下">初一下</option>
-                <option value="8上">初二上</option>
-                <option value="8下">初二下</option>
-                <option value="9上">初三上</option>
-                <option value="9下">初三下</option>
-              </select>
-            </div>
           </div>
           <div id="hw-list-container">
             <!-- 作业动态渲染 -->
@@ -1696,11 +1684,9 @@
       currentErrorFilter = 'all';
       currentHwGradeFilter = v;
       saveData();                      // 内部会触发 renderAll()，按新册刷新各模块
-      // 同步全局年级选择器与作业学年筛选
+      // 同步全局年级选择器
       const gsel = document.getElementById('global-volume-select');
       if (gsel) gsel.value = v;
-      const gf = document.getElementById('hw-grade-filter');
-      if (gf) gf.value = v;
       const glabel = document.getElementById('global-volume-label');
       if (glabel) glabel.innerText = volumeToGrade(v) + volumeToSemester(v) + '（' + v + '）';
     }
@@ -2322,11 +2308,6 @@
       currentHwFilter = subj;
       document.querySelectorAll('.homework-controls .filter-btn').forEach(b => b.classList.remove('active'));
       btnEl.classList.add('active');
-      renderHomeworkList();
-    }
-
-    function filterHwGrade(v) {
-      currentHwGradeFilter = v;
       renderHomeworkList();
     }
 
