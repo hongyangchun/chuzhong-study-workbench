@@ -1078,6 +1078,14 @@
         grid-template-columns: 1fr;
       }
     }
+    /* 错题题目截图（云端 KV） */
+    .image-preview-row, .err-img-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .err-img-thumb { width:72px; height:72px; border-radius:10px; background-size:cover; background-position:center; background-color:var(--bg-paper); border:1px solid #eee; position:relative; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--text-sub); overflow:hidden; }
+    .err-img-del { position:absolute; top:-2px; right:-2px; width:18px; height:18px; line-height:16px; text-align:center; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:12px; cursor:pointer; }
+    #imgLightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:9999; padding:20px; }
+    #imgLightbox.active { display:flex; }
+    #imgLightbox img { max-width:100%; max-height:100%; border-radius:8px; }
+    #imgLightbox::after { content:'×'; position:absolute; top:14px; right:22px; color:#fff; font-size:30px; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -1364,6 +1372,13 @@
             <div class="form-group">
               <label class="form-label">正确思路 / 标准解析</label>
               <textarea id="err-solution" class="form-control" placeholder="步骤：1. 去分母；2. 去括号；3. 移项（记得变号！）；4. 合并同类项..." required></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">题目截图（可选，存云端 KV）</label>
+              <input type="file" id="err-images" class="form-control" accept="image/*" multiple
+                     onchange="handleErrorImageSelect(event)" style="font-size:16px; padding:8px;">
+              <div id="err-image-preview" class="image-preview-row"></div>
+              <p id="err-image-hint" style="font-size:12px; color:var(--text-sub); margin-top:4px;"></p>
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%;">录入错题库 (开启 1,3,7,15 天四轮复习)</button>
           </form>
@@ -2789,7 +2804,7 @@
     // ------------------------------------------------------------------
     // 11. 模块 3: 错题本归因与四轮消灭
     // ------------------------------------------------------------------
-    function handleAddError(e) {
+    async function handleAddError(e) {
       e.preventDefault();
       const subject = document.getElementById('err-subject').value;
       const reason = document.getElementById('err-reason').value;
@@ -2809,11 +2824,28 @@
         graduated: false,
         isDemo: false,
         vol: currentVolume(),
-        createdAt: getTodayDateStr()
+        createdAt: getTodayDateStr(),
+        images: []
       };
+
+      if (pendingImages.length) {
+        const code = getSyncCode();
+        if (!code) { alert('请先在「系统设置 → 云同步」设置同步码再贴图。'); return; }
+        for (const url of pendingImages) {
+          try {
+            const id = await uploadErrorImage(url);
+            newError.images.push(id);
+          } catch (err) {
+            alert('图片上传失败：' + err.message + '，错题未保存，请重试。');
+            return;
+          }
+        }
+      }
 
       appData.errors.push(newError);
       saveData();
+      pendingImages = [];
+      renderPendingImages();
       document.getElementById('err-summary').value = '';
       document.getElementById('err-solution').value = '';
       alert("✅ 错题已录入错题库！系统已开启 1, 3, 7, 15 天四轮复习消灭。");
@@ -2886,6 +2918,7 @@
           </div>
         `;
         container.appendChild(card);
+        renderErrorImages(err, card);
       });
     }
 
@@ -3058,8 +3091,19 @@
       document.getElementById('settingsModal').classList.remove('active');
     }
 
-    function exportDataJSON() {
-      const jsonStr = JSON.stringify(appData, null, 2);
+    async function exportDataJSON() {
+      // 收集所有错题图片 id，从云端 KV 取回并内嵌进同一份 JSON（导出需联网）
+      const ids = new Set();
+      (appData.errors || []).forEach(e => (e.images || []).forEach(id => ids.add(id)));
+      const imagesMap = {};
+      if (ids.size && getSyncCode()) {
+        for (const id of ids) {
+          try { const b64 = await fetchErrorImage(id); if (b64) imagesMap[id] = b64; } catch (e) {}
+        }
+      }
+      const payload = JSON.parse(JSON.stringify(appData));
+      if (Object.keys(imagesMap).length) payload.__images = imagesMap;
+      const jsonStr = JSON.stringify(payload, null, 2);
       const blob = new Blob([jsonStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -3069,22 +3113,37 @@
       URL.revokeObjectURL(url);
     }
 
-    function importDataJSON(e) {
+    async function importDataJSON(e) {
       const file = e.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = function(evt) {
+      reader.onload = async function(evt) {
         try {
           const imported = JSON.parse(evt.target.result);
-          if (imported && imported.homework && imported.poetryMemory) {
-            appData = imported;
-            saveData();
-            alert("🎉 JSON 备份恢复成功！数据已更新。");
-            closeSettingsModal();
-          } else {
+          if (!(imported && imported.homework && imported.poetryMemory)) {
             alert("⚠️ 导入的文件格式不匹配！");
+            return;
           }
+          // 将内嵌的题目截图写回云端 KV（导入需联网 + 同步码）
+          const emb = imported.__images;
+          if (emb && Object.keys(emb).length) {
+            const code = getSyncCode();
+            if (!code) {
+              alert("⚠️ 备份含题目截图，但当前未设置同步码，截图无法恢复到云端，将以无图状态导入。");
+            } else {
+              let ok = 0, fail = 0;
+              for (const [id, data] of Object.entries(emb)) {
+                try { await uploadImageById(id, data); ok++; } catch (e) { fail++; }
+              }
+              if (fail) alert("截图恢复：" + ok + " 张成功，" + fail + " 张失败（可能网络问题）。");
+            }
+            delete imported.__images;
+          }
+          appData = imported;
+          saveData();
+          alert("🎉 JSON 备份恢复成功！数据已更新。");
+          closeSettingsModal();
         } catch(err) {
           alert("⚠️ 读取 JSON 文件失败，请检查文件是否损坏。");
         }
@@ -3366,6 +3425,159 @@
       autoPushTimer = setTimeout(() => { pushToCloud(); }, 1500);
     }
 
+    // ------------------------------------------------------------------
+    // 12. 错题题目截图（云端 KV 存储，本地仅存 id，规避 5MB 限制）
+    //     图片压缩后存 Cloudflare KV（/api/img），显示时按 id 拉取
+    // ------------------------------------------------------------------
+    const IMG_CACHE = new Map();
+    let pendingImages = []; // 录入表单待上传的本地预览（完整 dataURL）
+
+    function compressImageFile(file, maxW, quality) {
+      maxW = maxW || 800; quality = (quality == null) ? 0.6 : quality;
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = reject;
+          img.onload = () => {
+            let w = img.width, h = img.height;
+            if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function fetchErrorImage(id) {
+      if (IMG_CACHE.has(id)) return IMG_CACHE.get(id);
+      const code = getSyncCode();
+      if (!code) return null;
+      try {
+        const res = await fetch('/api/img?code=' + encodeURIComponent(code) + '&id=' + encodeURIComponent(id), { cache: 'no-store' });
+        if (res.status === 404) { IMG_CACHE.set(id, null); return null; }
+        const j = await res.json();
+        IMG_CACHE.set(id, j.data || null);
+        return j.data || null;
+      } catch (e) { return null; }
+    }
+
+    async function uploadErrorImage(dataUrl) {
+      const code = getSyncCode();
+      if (!code) throw new Error('未设置同步码');
+      const base64 = (dataUrl.split(',')[1]) || dataUrl;
+      const id = 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+      const res = await fetch('/api/img', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code, id, data: base64 })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return id;
+    }
+
+    async function uploadImageById(id, data) {
+      const code = getSyncCode();
+      const res = await fetch('/api/img', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code, id, data })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+    }
+
+    async function deleteErrorImage(id) {
+      const code = getSyncCode();
+      if (!code) return;
+      try { await fetch('/api/img?code=' + encodeURIComponent(code) + '&id=' + encodeURIComponent(id), { method: 'DELETE' }); } catch (e) {}
+    }
+
+    async function handleErrorImageSelect(e) {
+      const input = e.target;
+      const files = Array.from(input.files || []);
+      if (!getSyncCode()) {
+        alert('题目截图将存到云端，请先在「系统设置 → 云同步」设置并保存同步码。');
+        input.value = '';
+        return;
+      }
+      for (const f of files) {
+        if (pendingImages.length >= 9) { alert('最多 9 张截图'); break; }
+        try { pendingImages.push(await compressImageFile(f, 800, 0.6)); } catch (err) { console.warn(err); }
+      }
+      input.value = '';
+      renderPendingImages();
+    }
+
+    function renderPendingImages() {
+      const box = document.getElementById('err-image-preview');
+      if (!box) return;
+      box.innerHTML = '';
+      pendingImages.forEach((url, idx) => {
+        const t = document.createElement('div');
+        t.className = 'err-img-thumb';
+        t.style.backgroundImage = 'url(' + url + ')';
+        const del = document.createElement('span');
+        del.className = 'err-img-del'; del.textContent = '×';
+        del.onclick = () => { pendingImages.splice(idx, 1); renderPendingImages(); };
+        t.appendChild(del);
+        box.appendChild(t);
+      });
+      const hint = document.getElementById('err-image-hint');
+      if (hint) hint.textContent = pendingImages.length ? ('已选 ' + pendingImages.length + '/9 张，提交后上传到云端') : '';
+    }
+
+    function renderErrorImages(err, cardEl) {
+      const ids = err.images || [];
+      if (!ids.length) return;
+      const row = document.createElement('div');
+      row.className = 'err-img-row';
+      ids.forEach(id => {
+        const thumb = document.createElement('div');
+        thumb.className = 'err-img-thumb';
+        thumb.textContent = '⏳';
+        thumb.title = '点击查看大图';
+        const del = document.createElement('span');
+        del.className = 'err-img-del'; del.textContent = '×';
+        del.onclick = (ev) => { ev.stopPropagation(); removeErrorImage(err.id, id); };
+        thumb.appendChild(del);
+        thumb.onclick = () => showErrorImage(id);
+        row.appendChild(thumb);
+        fetchErrorImage(id).then(b64 => {
+          if (!b64) { thumb.textContent = '离线'; return; }
+          const im = new Image();
+          im.onload = () => { thumb.textContent = ''; thumb.style.backgroundImage = 'url(data:image/jpeg;base64,' + b64 + ')'; };
+          im.onerror = () => { thumb.textContent = '✕'; };
+          im.src = 'data:image/jpeg;base64,' + b64;
+        }).catch(() => { thumb.textContent = '离线'; });
+      });
+      cardEl.insertBefore(row, cardEl.lastElementChild);
+    }
+
+    async function removeErrorImage(errId, imgId) {
+      const err = appData.errors.find(e => e.id === errId);
+      if (!err) return;
+      if (!confirm('删除这张题目截图？')) return;
+      await deleteErrorImage(imgId);
+      err.images = (err.images || []).filter(x => x !== imgId);
+      saveData();
+      renderErrorList();
+    }
+
+    function showErrorImage(id) {
+      fetchErrorImage(id).then(b64 => {
+        const lb = document.getElementById('imgLightbox');
+        const im = document.getElementById('imgLightboxImg');
+        if (!b64) { im.removeAttribute('src'); im.alt = '图片离线不可用（需联网查看）'; }
+        else { im.src = 'data:image/jpeg;base64,' + b64; im.alt = '题目截图'; }
+        lb.classList.add('active');
+      });
+    }
+
     // 铁律：只清除示例数据，不影响用户添加的数据
     function clearOnlyDemoData() {
       if (confirm("确认清空初始示例数据吗？将一并清除全部册教材库（各学年古诗文与课标词汇），仅保留您自己登记/新增的内容。误清可点“恢复教材默认库”找回。")) {
@@ -3597,5 +3809,11 @@
       }
     });
   </script>
+
+  <!-- 题目截图大图查看 -->
+  <div id="imgLightbox" onclick="this.classList.remove('active')">
+    <img id="imgLightboxImg" onclick="event.stopPropagation()" alt="题目截图">
+  </div>
+
 </body>
 </html>
