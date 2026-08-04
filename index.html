@@ -1500,6 +1500,23 @@
           </div>
         </div>
 
+        <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md); border:1px solid var(--primary-green);">
+          <h4 style="color:var(--primary-green); margin-bottom:6px;">云同步（跨设备）</h4>
+          <p style="font-size:13px; color:var(--text-sub); margin-bottom:10px;">同步码即云端钥匙，全家共用同一码即共享同一份数据；数据经 Cloudflare KV 中转。需先在 Cloudflare 后台把 KV 绑定到本站点（详见 README）。</p>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <input type="password" id="syncCodeInput" class="form-control" placeholder="设置同步码（4-64 字符，如 family2026）" style="max-width:320px;">
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+              <button class="btn btn-outline btn-sm" onclick="saveSyncCode()">保存同步码</button>
+              <button class="btn btn-primary btn-sm" onclick="pushToCloud()">推送到云端</button>
+              <button class="btn btn-outline btn-sm" onclick="pullFromCloud()">从云端拉取</button>
+              <label style="font-size:13px; color:var(--text-sub); display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="syncAuto"> 自动同步
+              </label>
+            </div>
+            <p id="syncStatus" style="font-size:12px; color:var(--primary-green); min-height:16px;">未同步</p>
+          </div>
+        </div>
+
         <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md);">
           <h4 style="color:var(--accent-orange); margin-bottom:6px;">示例数据重置</h4>
           <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">清除内置的初始演示数据（含全部册教材库），仅保留您自己登记/新增的内容。误清后可一键恢复教材默认库。</p>
@@ -1901,6 +1918,7 @@
     function saveData() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
       renderAll();
+      maybeAutoPush();
     }
 
     // 铁律：昨天未完成的作业自动滚到今天，过期标红并置顶
@@ -2973,6 +2991,7 @@
     // 13. 系统设置与数据导出导入/长按清空
     // ------------------------------------------------------------------
     function openSettingsModal() {
+      loadSyncInputs();
       document.getElementById('settingsModal').classList.add('active');
     }
 
@@ -3012,6 +3031,107 @@
         }
       };
       reader.readAsText(file);
+    }
+
+    // ------------------------------------------------------------------
+    // 云同步（跨设备，基于 Cloudflare Pages Function + KV）
+    // 同步码单独存于私有 key，不进入 appData 备份，避免泄漏；仅本地保存。
+    // 采用 last-write-wins：云端以 lm(时间戳) 为准，旧 lm 推送会被拒(409)提示先拉取。
+    // ------------------------------------------------------------------
+    let isSyncing = false;
+    let autoPushTimer = null;
+    const SYNC_CODE_KEY = 'wb_sync_code';
+    const SYNC_AUTO_KEY = 'wb_sync_auto';
+
+    function getSyncCode() {
+      return localStorage.getItem(SYNC_CODE_KEY) || '';
+    }
+
+    function loadSyncInputs() {
+      const c = document.getElementById('syncCodeInput');
+      if (c) c.value = getSyncCode();
+      const a = document.getElementById('syncAuto');
+      if (a) a.checked = localStorage.getItem(SYNC_AUTO_KEY) === '1';
+    }
+
+    function setSyncStatus(t) {
+      const el = document.getElementById('syncStatus');
+      if (el) el.innerText = t;
+    }
+
+    function saveSyncCode() {
+      const c = document.getElementById('syncCodeInput');
+      const v = (c ? c.value : '').trim();
+      if (v.length < 4 || v.length > 64) {
+        alert('同步码需 4-64 字符');
+        return;
+      }
+      localStorage.setItem(SYNC_CODE_KEY, v);
+      localStorage.setItem(SYNC_AUTO_KEY, (document.getElementById('syncAuto') || {}).checked ? '1' : '0');
+      alert('同步码已保存到本机 ✓');
+    }
+
+    async function pushToCloud() {
+      const code = getSyncCode();
+      if (!code) { alert('请先在上方设置并保存同步码'); return; }
+      isSyncing = true;
+      try {
+        appData.syncLM = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        const res = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ code, lm: appData.syncLM, data: appData })
+        });
+        if (res.status === 409) {
+          setSyncStatus('云端已有更新的数据，请先拉取');
+          alert('云端已有更新的数据，请先点“从云端拉取”。');
+          return;
+        }
+        if (!res.ok) { setSyncStatus('推送失败：' + res.status); alert('推送失败：' + res.status); return; }
+        setSyncStatus('已推送到云端 ✓');
+      } catch (e) {
+        setSyncStatus('推送出错：' + e.message);
+      } finally {
+        isSyncing = false;
+      }
+    }
+
+    async function pullFromCloud() {
+      const code = getSyncCode();
+      if (!code) { alert('请先设置并保存同步码'); return; }
+      isSyncing = true;
+      try {
+        const res = await fetch('/api/sync?code=' + encodeURIComponent(code), { cache: 'no-store' });
+        if (res.status === 404) {
+          setSyncStatus('云端还没有数据，请先推送');
+          alert('云端还没有这份数据，请先点“推送到云端”。');
+          return;
+        }
+        if (!res.ok) { setSyncStatus('拉取失败：' + res.status); return; }
+        const remote = await res.json();
+        const localLM = appData.syncLM || 0;
+        if (remote.lm > localLM) {
+          appData = remote.data;
+          appData.syncLM = remote.lm;
+          saveData();
+          setSyncStatus('已拉取云端最新数据 ✓');
+        } else {
+          setSyncStatus('本机已是最新，无需拉取');
+        }
+      } catch (e) {
+        setSyncStatus('拉取出错：' + e.message);
+      } finally {
+        isSyncing = false;
+      }
+    }
+
+    function maybeAutoPush() {
+      if (isSyncing) return;
+      if (localStorage.getItem(SYNC_AUTO_KEY) !== '1') return;
+      if (!getSyncCode()) return;
+      if (autoPushTimer) clearTimeout(autoPushTimer);
+      autoPushTimer = setTimeout(() => { pushToCloud(); }, 1500);
     }
 
     // 铁律：只清除示例数据，不影响用户添加的数据
@@ -3238,6 +3358,11 @@
       const glabel = document.getElementById('global-volume-label');
       if (glabel) glabel.innerText = volumeToGrade(currentVolume()) + volumeToSemester(currentVolume()) + '（' + currentVolume() + '）';
       renderAll();
+
+      // 自动同步：开启且已设同步码则启动时从云端拉取最新
+      if (localStorage.getItem(SYNC_AUTO_KEY) === '1' && getSyncCode()) {
+        pullFromCloud();
+      }
     });
   </script>
 </body>

@@ -16,3 +16,28 @@
 
 ## 数据说明
 所有数据保存在使用者浏览器的 localStorage，**不在服务器上**。部署后的页面公开可访问，但默认不含任何真实数据，首次打开会预置演示内容。
+
+## 跨设备同步（可选，基于 Cloudflare KV）
+本站点支持通过 Cloudflare KV 做跨设备同步。同步逻辑在 `functions/api/sync.js`（Pages Functions），需先在 Cloudflare 后台绑定一个 KV namespace。
+
+**1. 创建并绑定 KV**
+- 登录 Cloudflare 控制台 → **Workers & Pages** → 左侧 **KV** → 新建 namespace（如 `chuyi-sync`）
+- 进入本项目的 Pages 设置 → **Settings → Functions → KV namespace bindings** → 添加绑定：
+  - Variable name 填 **`SYNC_KV`**（必须与代码一致）
+  - KV namespace 选刚创建的 `chuyi-sync`
+
+**2. 使用**
+- 重新部署一次（Push 后会自动触发）后，打开站点 → 左下角「系统设置与数据」→「云同步」
+- 设置一个**同步码**（4-64 字符，如 `family2026`），点「保存同步码」
+- 在任一设备点「推送到云端」，其他设备点「从云端拉取」即可同步
+- 勾选「自动同步」后：启动自动拉取，本地改动 1.5 秒后自动推送
+
+**同步规则与隐私**
+- 全家共用同一同步码 = 共享同一份数据；不同码 = 各自独立 vault
+- 冲突策略为 last-write-wins：云端按时间戳判定，推送比云端旧的版本会被拒绝（提示先拉取）
+- 同步码仅存于本机私有 key，**不进入导出的 JSON 备份**，避免泄漏
+- 开启同步后，数据副本会存入 Cloudflare KV（不再「仅在浏览器」）。数据为初中作业/错题，敏感度低；如不想上云，关闭同步、仅用本地存储即可
+- KV 免费额度充足：每天 10 万次读 / 1000 次写，个人使用绰绰有余
+
+## 本地预览
+直接用浏览器打开 `index.html` 即可。云同步功能需部署到 Cloudflare Pages 后才会生效（依赖 Functions + KV）。
