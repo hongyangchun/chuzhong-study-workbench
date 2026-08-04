@@ -1,0 +1,12 @@
+# Cloudflare Pages 配置（用于本地预览与 `wrangler pages deploy`）
+# 站点为纯静态单文件 + Pages Functions（functions/api/sync.js）
+name = "chuzhong-study-workbench"
+pages_build_output_dir = "."
+compatibility_date = "2024-09-23"
+
+# 跨设备同步用的 KV 绑定，须与 functions/api/sync.js 中 env.studybench_sync 完全一致。
+# 把下面 id 换成你在 Cloudflare 后台创建的 KV namespace ID：
+#   Workers & Pages → 左侧 KV → 新建 namespace（如 chuzhong-sync）→ 复制其 ID
+[[kv_namespaces]]
+binding = "studybench_sync"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"

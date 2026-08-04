@@ -1518,6 +1518,18 @@
         </div>
 
         <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md);">
+          <h4 style="color:var(--primary-green); margin-bottom:6px;">📦 学年归档与本地存储</h4>
+          <p style="font-size:13px; color:var(--text-sub); margin-bottom:10px;">数据全部存在浏览器本地（单域约 5 MB）。三年累积可能占满，建议学年末把往年数据归档到本地冷存储，活跃库只留当前年级。</p>
+          <div id="storageMeter" style="margin-bottom:12px;"></div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+            <button class="btn btn-outline btn-sm" onclick="archiveCurrentSnapshot()">📸 归档当前数据（快照+下载）</button>
+            <button class="btn btn-primary btn-sm" onclick="archiveAndSlim()">🧹 归档往年并释放空间</button>
+          </div>
+          <h4 style="color:var(--text-sub); font-size:13px; margin-bottom:6px;">归档库（本地冷存储）</h4>
+          <div id="archiveList"></div>
+        </div>
+
+        <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md);">
           <h4 style="color:var(--accent-orange); margin-bottom:6px;">示例数据重置</h4>
           <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">清除内置的初始演示数据（含全部册教材库），仅保留您自己登记/新增的内容。误清后可一键恢复教材默认库。</p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -2992,6 +3004,7 @@
     // ------------------------------------------------------------------
     function openSettingsModal() {
       loadSyncInputs();
+      renderArchiveSection();
       document.getElementById('settingsModal').classList.add('active');
     }
 
@@ -3031,6 +3044,179 @@
         }
       };
       reader.readAsText(file);
+    }
+
+    // ------------------------------------------------------------------
+    // 学年归档与本地冷存储（防 5MB 爆仓：旧年级数据移出活跃库，可随时恢复）
+    // ------------------------------------------------------------------
+    const ARCHIVE_KEY = 'wb_chuzhong_archive';
+    const LS_QUOTA = 5 * 1024 * 1024; // 单域约 5MB
+
+    function getArchiveStore() {
+      try { return JSON.parse(localStorage.getItem(ARCHIVE_KEY)) || []; }
+      catch (e) { return []; }
+    }
+    function setArchiveStore(arr) {
+      localStorage.setItem(ARCHIVE_KEY, JSON.stringify(arr));
+    }
+    function currentGradeVolumes() {
+      const g = volumeToGrade(currentVolume());
+      return VOLUMES.filter(v => volumeToGrade(v) === g);
+    }
+    function otherGradeVolumes() {
+      const cur = currentGradeVolumes();
+      return VOLUMES.filter(v => cur.indexOf(v) < 0);
+    }
+    function downloadObject(filename, obj) {
+      const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+    function makeSnapshot(label) {
+      return {
+        id: 'arc_' + Date.now(),
+        label: label || (volumeToGrade(currentVolume()) + volumeToSemester(currentVolume()) + '（' + currentVolume() + '）'),
+        at: new Date().toISOString(),
+        data: JSON.parse(JSON.stringify(appData))
+      };
+    }
+    function archiveCurrentSnapshot() {
+      const store = getArchiveStore();
+      const snap = makeSnapshot();
+      store.push(snap);
+      setArchiveStore(store);
+      downloadObject('chuzhong_archive_' + snap.at.slice(0, 10) + '.json', snap.data);
+      renderArchiveSection();
+      alert('已生成归档快照并下载备份 ✓（当前共 ' + store.length + ' 份归档）');
+    }
+    function archiveAndSlim() {
+      const others = otherGradeVolumes();
+      if (others.length === 0) { alert('当前已是最高年级，没有可归档的往年数据。'); return; }
+      const keep = currentGradeVolumes();
+      if (!confirm('将把以下册的数据移入归档冷存储，并从活跃库移除：\n' + others.join('、') +
+        '\n\n当前年级（' + keep.join('、') + '）的数据保留在活跃库。\n归档后可在下方“归档库”随时恢复。确定继续？')) return;
+
+      const keepSet = new Set(keep);
+      const slim = JSON.parse(JSON.stringify(appData));
+
+      // 作业 / 错题：仅保留当前年级册
+      slim.homework = (slim.homework || []).filter(h => keepSet.has(h.vol));
+      slim.errors = (slim.errors || []).filter(e => keepSet.has(e.vol));
+
+      // 背诵库：仅保留当前年级册
+      const slimPB = {}, slimWB = {};
+      keep.forEach(v => {
+        if (slim.poetryBank && slim.poetryBank[v]) slimPB[v] = slim.poetryBank[v];
+        if (slim.wordBank && slim.wordBank[v]) slimWB[v] = slim.wordBank[v];
+      });
+      slim.poetryBank = slimPB; slim.wordBank = slimWB;
+
+      // 记忆进度：按册映射出被归档的诗/词 ID，其余保留
+      const arcPoemIds = new Set(), arcWordIds = new Set();
+      others.forEach(v => {
+        (appData.poetryBank[v] || []).forEach(p => arcPoemIds.add(String(p.id)));
+        (appData.wordBank[v] || []).forEach(w => arcWordIds.add(String(w.id)));
+      });
+      const slimPM = {}, slimWM = {};
+      Object.keys(slim.poetryMemory || {}).forEach(k => { if (!arcPoemIds.has(k)) slimPM[k] = slim.poetryMemory[k]; });
+      Object.keys(slim.wordMemory || {}).forEach(k => { if (!arcWordIds.has(k)) slimWM[k] = slim.wordMemory[k]; });
+      slim.poetryMemory = slimPM; slim.wordMemory = slimWM;
+
+      // 用户自定义诗/词：有 vol 则按册过滤，无 vol 视为当前保留
+      if (slim.userPoetry) slim.userPoetry = slim.userPoetry.filter(p => !p.vol || keepSet.has(p.vol));
+      if (slim.userWords) slim.userWords = slim.userWords.filter(w => !w.vol || keepSet.has(w.vol));
+
+      // 组装被移除部分作为归档快照（含记忆进度与用户自定义）
+      const removed = {
+        homework: (appData.homework || []).filter(h => !keepSet.has(h.vol)),
+        errors: (appData.errors || []).filter(e => !keepSet.has(e.vol)),
+        poetryBank: {}, wordBank: {},
+        poetryMemory: {}, wordMemory: {},
+        userPoetry: (appData.userPoetry || []).filter(p => p.vol && !keepSet.has(p.vol)),
+        userWords: (appData.userWords || []).filter(w => w.vol && !keepSet.has(w.vol))
+      };
+      others.forEach(v => {
+        if (appData.poetryBank[v]) removed.poetryBank[v] = appData.poetryBank[v];
+        if (appData.wordBank[v]) removed.wordBank[v] = appData.wordBank[v];
+      });
+      arcPoemIds.forEach(k => { if (appData.poetryMemory[k]) removed.poetryMemory[k] = appData.poetryMemory[k]; });
+      arcWordIds.forEach(k => { if (appData.wordMemory[k]) removed.wordMemory[k] = appData.wordMemory[k]; });
+
+      const store = getArchiveStore();
+      store.push({ id: 'arc_' + Date.now(), label: '归档往年（' + others.join('、') + '）', at: new Date().toISOString(), data: removed });
+      setArchiveStore(store);
+
+      appData = slim;
+      saveData();
+      renderArchiveSection();
+      alert('已归档往年数据并释放活跃库空间 ✓');
+    }
+    function restoreArchive(id) {
+      const store = getArchiveStore();
+      const snap = store.find(s => s.id === id);
+      if (!snap) return;
+      if (!confirm('将把归档「' + snap.label + '」【合并】回活跃库（按 ID/册去重，不覆盖现有条目）。确定继续？')) return;
+      const d = snap.data;
+      appData.homework = (appData.homework || []).concat((d.homework || []).filter(h => !(appData.homework || []).find(x => x.id === h.id)));
+      appData.errors = (appData.errors || []).concat((d.errors || []).filter(e => !(appData.errors || []).find(x => x.id === e.id)));
+      ['poetryBank', 'wordBank'].forEach(k => {
+        if (!appData[k]) appData[k] = {};
+        if (d[k]) Object.keys(d[k]).forEach(v => {
+          if (!appData[k][v]) appData[k][v] = [];
+          appData[k][v] = appData[k][v].concat(d[k][v].filter(x => !appData[k][v].find(y => y.id === x.id)));
+        });
+      });
+      ['poetryMemory', 'wordMemory'].forEach(k => {
+        if (!appData[k]) appData[k] = {};
+        if (d[k]) Object.keys(d[k]).forEach(idk => { if (!appData[k][idk]) appData[k][idk] = d[k][idk]; });
+      });
+      if (d.userPoetry) appData.userPoetry = (appData.userPoetry || []).concat(d.userPoetry.filter(p => !(appData.userPoetry || []).find(x => x.id === p.id)));
+      if (d.userWords) appData.userWords = (appData.userWords || []).concat(d.userWords.filter(w => !(appData.userWords || []).find(x => x.id === w.id)));
+      saveData();
+      alert('归档已合并恢复到活跃库 ✓');
+    }
+    function deleteArchive(id) {
+      if (!confirm('确定删除这份归档快照？删除后无法恢复。')) return;
+      setArchiveStore(getArchiveStore().filter(s => s.id !== id));
+      renderArchiveSection();
+    }
+    function fmtBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1024 / 1024).toFixed(2) + ' MB';
+    }
+    function renderArchiveSection() {
+      const meter = document.getElementById('storageMeter');
+      if (meter) {
+        const raw = localStorage.getItem(STORAGE_KEY) || '';
+        const used = new Blob([raw]).size;
+        const pct = Math.min(100, Math.round(used / LS_QUOTA * 100));
+        const warn = pct >= 60;
+        meter.innerHTML =
+          '<div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-sub); margin-bottom:6px;">' +
+          '<span>活跃库占用：' + fmtBytes(used) + ' / 5 MB</span><span' + (warn ? ' style="color:var(--status-red); font-weight:700;"' : '') + '>' + pct + '%</span></div>' +
+          '<div style="height:8px; background:#eee; border-radius:6px; overflow:hidden;">' +
+          '<div style="height:100%; width:' + pct + '%; background:' + (warn ? 'var(--status-red)' : 'var(--primary-green)') + ';"></div></div>' +
+          (warn ? '<p style="font-size:12px; color:var(--status-red); margin-top:6px;">占用偏高，建议「归档往年并释放空间」。</p>' : '');
+      }
+      const list = document.getElementById('archiveList');
+      if (list) {
+        const store = getArchiveStore();
+        if (store.length === 0) {
+          list.innerHTML = '<p style="font-size:12px; color:var(--text-sub);">暂无归档快照。可按上方按钮生成。</p>';
+        } else {
+          list.innerHTML = store.slice().reverse().map(s =>
+            '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #eee;">' +
+            '<div style="font-size:13px;"><b>' + s.label + '</b><br><span style="font-size:11px; color:var(--text-sub);">' + s.at.replace('T', ' ').slice(0, 16) + '</span></div>' +
+            '<div style="display:flex; gap:6px;">' +
+            '<button class="btn btn-outline btn-sm" onclick="restoreArchive(\'' + s.id + '\')">恢复</button>' +
+            '<button class="btn btn-outline btn-sm" onclick="deleteArchive(\'' + s.id + '\')">删除</button>' +
+            '</div></div>'
+          ).join('');
+        }
+      }
     }
 
     // ------------------------------------------------------------------

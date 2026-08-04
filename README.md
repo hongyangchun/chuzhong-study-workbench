@@ -41,3 +41,17 @@
 
 ## 本地预览
 直接用浏览器打开 `index.html` 即可。云同步功能需部署到 Cloudflare Pages 后才会生效（依赖 Functions + KV）。
+
+## 部署到 Cloudflare Pages
+**方式一：后台连接仓库（推荐，零配置）**
+- Cloudflare 控制台 → **Workers & Pages** → **Create** → **Pages** → 连接 GitHub 仓库 `chuzhong-study-workbench`
+- 构建命令留空、输出目录留空（已是单文件静态站）；Functions 会自动读取 `functions/` 目录
+- 部署后按上文「跨设备同步」绑定 KV（Variable name 必须填 `studybench_sync`）
+
+**方式二：本地命令行（可固化绑定，便于复现）**
+- 仓库根目录已提供 `wrangler.toml`，把其中 `id` 改成你的 KV namespace ID
+- 安装并登录：`npm i -g wrangler && wrangler login`
+- 预览：`wrangler pages dev .`
+- 部署：`wrangler pages deploy .`
+
+> 无论哪种方式，**KV 绑定名都必须是 `studybench_sync`**，否则 `functions/api/sync.js` 读取不到会报错。修改绑定后需重新部署一次。
