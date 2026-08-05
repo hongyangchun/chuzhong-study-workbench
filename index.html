@@ -384,6 +384,11 @@
     .tag-poetry { background: #E8F5E9; color: #388E3C; }
     .tag-word { background: #FFF3E0; color: #F57C00; }
     .tag-error { background: #FFEBEE; color: #D32F2F; }
+    .focus-item.summary {
+      border-left-color: var(--primary-green);
+      background: var(--primary-green-light);
+    }
+    .tag-summary { background: var(--primary-green-light); color: var(--primary-green); border: 1px solid var(--primary-green); }
 
     .focus-item-text {
       flex: 1;
@@ -2947,10 +2952,10 @@ words: [
         }
       });
 
-      // 2. 记忆项 (古诗) — 当前册可背诵库
+      // 2. 记忆项 (古诗) — 仅列入「已学过且到期复习」的项；未学的新导入诗不进今日，避免一次导入几百条淹没真正要复习的
       visiblePoetry().forEach(p => {
-        const mem = appData.poetryMemory[p.id] || { nextReview: today, graduated: false };
-        if (!mem.graduated && mem.nextReview <= today) {
+        const mem = appData.poetryMemory ? appData.poetryMemory[p.id] : null;
+        if (mem && !mem.graduated && mem.nextReview <= today) {
           items.push({
             type: 'poetry',
             id: p.id,
@@ -2965,10 +2970,10 @@ words: [
         }
       });
 
-      // 3. 记忆项 (单词) — 当前册可背诵库
+      // 3. 记忆项 (单词) — 同上，仅列入「已学过且到期复习」的项
       visibleWords().forEach(w => {
-        const mem = appData.wordMemory[w.id] || { nextReview: today, graduated: false };
-        if (!mem.graduated && mem.nextReview <= today) {
+        const mem = appData.wordMemory ? appData.wordMemory[w.id] : null;
+        if (mem && !mem.graduated && mem.nextReview <= today) {
           items.push({
             type: 'word',
             id: w.id,
@@ -2983,11 +2988,11 @@ words: [
         }
       });
 
-      // 3.5 记忆项 (通用记忆卡) — 仅当前册
+      // 3.5 记忆项 (通用记忆卡) — 仅当前册，仅列入「已学过且到期复习」的项
       (appData.userCards || []).forEach(c => {
         if (!c.vol || c.vol === currentVolume()) {
-          const mem = appData.cardMemory[c.id] || { nextReview: today, graduated: false };
-          if (!mem.graduated && mem.nextReview <= today) {
+          const mem = appData.cardMemory ? appData.cardMemory[c.id] : null;
+          if (mem && !mem.graduated && mem.nextReview <= today) {
             items.push({
               type: 'card',
               id: c.id,
@@ -3020,7 +3025,34 @@ words: [
         }
       });
 
+      // 「待开始」汇总卡：统计当前册尚未开始学（无记忆记录）的诗/词/卡，引导去背诵库挑选今日任务
+      let unP = 0, unW = 0, unC = 0;
+      visiblePoetry().forEach(p => { if (!appData.poetryMemory || !appData.poetryMemory[p.id]) unP++; });
+      visibleWords().forEach(w => { if (!appData.wordMemory || !appData.wordMemory[w.id]) unW++; });
+      (appData.userCards || []).forEach(c => { if ((!c.vol || c.vol === currentVolume()) && (!appData.cardMemory || !appData.cardMemory[c.id])) unC++; });
+      const unTotal = unP + unW + unC;
+
+      let html = '';
+      if (unTotal > 0) {
+        const parts = [];
+        if (unP) parts.push(`<b>${unP}</b> 篇古诗`);
+        if (unW) parts.push(`<b>${unW}</b> 个单词`);
+        if (unC) parts.push(`<b>${unC}</b> 张记忆卡`);
+        html += `<div class="focus-item summary">
+          <span class="focus-item-tag tag-summary">📚 待开始</span>
+          <div style="flex:1;">
+            <div class="focus-item-text">背诵库有 ${parts.join(' · ')} 还没开始学</div>
+            <div class="focus-item-sub">去背诵库挑今天想攻克的内容 →</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="switchTab('memory')">去背诵库</button>
+        </div>`;
+      }
+
       if (items.length === 0) {
+        if (unTotal > 0) {
+          container.innerHTML = html;
+          return;
+        }
         container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--primary-green); font-weight:700;">🎉 太棒啦！今天没有需要急需处理的任务，保持节奏！</div>`;
         return;
       }
@@ -3029,18 +3061,17 @@ words: [
       items.sort((a, b) => b.isOverdue - a.isOverdue);
 
       items.forEach(it => {
-        const div = document.createElement('div');
-        div.className = `focus-item ${it.isOverdue ? 'overdue' : ''}`;
-        div.innerHTML = `
-          <span class="focus-item-tag ${it.tagClass}">${it.tag}</span>
-          <div style="flex:1;">
-            <div class="focus-item-text">${it.title}</div>
-            <div class="focus-item-sub">${it.sub}</div>
-          </div>
-          <button class="btn btn-outline btn-sm" onclick="${it.onAction}">${it.actionText}</button>
-        `;
-        container.appendChild(div);
+        html += `
+          <div class="focus-item ${it.isOverdue ? 'overdue' : ''}">
+            <span class="focus-item-tag ${it.tagClass}">${it.tag}</span>
+            <div style="flex:1;">
+              <div class="focus-item-text">${it.title}</div>
+              <div class="focus-item-sub">${it.sub}</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="${it.onAction}">${it.actionText}</button>
+          </div>`;
       });
+      container.innerHTML = html;
     }
 
     // ------------------------------------------------------------------
@@ -3333,7 +3364,7 @@ words: [
       if (list.length > 0) {
         list.forEach(p => {
           const mem = appData.poetryMemory[p.id];
-          const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已通关毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">下次复习: ${mem.nextReview}</span>`) : `<span style="font-size:12px; color:var(--text-sub);">未开始复习</span>`;
+          const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已通关毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">下次复习: ${mem.nextReview}</span>`) : `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:var(--accent-orange-light); color:var(--accent-orange); font-weight:600;">待开始</span>`;
 
           const lines = p.content.split('\n');
           let contentHtml = '';
@@ -3425,7 +3456,7 @@ words: [
       const mem = appData.wordMemory[w.id];
       const isUserItem = w.id.toString().startsWith('cw_') || w.isDefault === true;
       const isDefaultWord = w.isDefault === true;
-      const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮卡片</span>`) : `<span style="font-size:12px; color:var(--text-sub);">未开始复习</span>`;
+      const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮卡片</span>`) : `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:var(--accent-orange-light); color:var(--accent-orange); font-weight:600;">待开始</span>`;
 
       container.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -3489,7 +3520,7 @@ words: [
       const mem = appData.cardMemory[card.id];
       const displayReview = mem
         ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮复习</span>`)
-        : `<span style="font-size:12px; color:var(--text-sub);">未开始复习</span>`;
+        : `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:var(--accent-orange-light); color:var(--accent-orange); font-weight:600;">待开始</span>`;
 
       const backHtml = (card.back || '').split('\n').map(l => `<div>${l}</div>`).join('');
 
