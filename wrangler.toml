@@ -4,9 +4,11 @@ name = "chuzhong-study-workbench"
 pages_build_output_dir = "."
 compatibility_date = "2024-09-23"
 
-# 跨设备同步用的 KV 绑定【不写在这里】，而是在 Cloudflare 后台配置：
-#   Workers & Pages → 你的项目 → Settings → Functions → KV namespace bindings
-#   新增绑定，Variable name 填 `studybench_sync`，选你创建的 namespace
-# 代码通过 env.studybench_sync 读取，与 wrangler.toml 无关。
-# （若在此处写 id，必须是真实十六进制 namespace ID，否则 Pages 构建会报
-#  Error 8000022: Invalid KV namespace ID。后台已绑定则无需此段。）
+# 跨设备同步用的 KV 绑定
+# ⚠️ 本项目被 Cloudflare 识别为「wrangler 管理模式」，绑定必须在此声明，
+#    后台 UI 手动添加的 KV 绑定不生效。Git 部署时会读取本文件应用绑定。
+# 代码通过 env.studybench_sync 读取此 KV。
+# id 为 Cloudflare 后台 Workers & Pages → KV 中该 namespace 的真实 ID。
+[[kv_namespaces]]
+binding = "studybench_sync"
+id = "0a2fc1e33ac242baab69bc569d547e90"

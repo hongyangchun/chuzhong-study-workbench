@@ -18,13 +18,12 @@
 所有数据保存在使用者浏览器的 localStorage，**不在服务器上**。部署后的页面公开可访问，但默认不含任何真实数据，首次打开会预置演示内容。
 
 ## 跨设备同步（可选，基于 Cloudflare KV）
-本站点支持通过 Cloudflare KV 做跨设备同步。同步逻辑在 `functions/api/sync.js`（Pages Functions），需先在 Cloudflare 后台绑定一个 KV namespace。
+本站点支持通过 Cloudflare KV 做跨设备同步。同步逻辑在 `functions/api/sync.js`（Pages Functions）。本项目为 **wrangler 管理模式**，KV 绑定已在仓库根 `wrangler.toml` 中声明（绑定名 `studybench_sync`），git push 部署即自动生效。
 
-**1. 创建并绑定 KV**
+**1. 准备 KV namespace**
 - 登录 Cloudflare 控制台 → **Workers & Pages** → 左侧 **KV** → 新建 namespace（如 `chuzhong-sync`）
-- 进入本项目的 Pages 设置 → **Settings → Functions → KV namespace bindings** → 添加绑定：
-  - Variable name 填 **`studybench_sync`**（必须与代码一致）
-  - KV namespace 选刚创建的 `chuzhong-sync`
+- 复制该 namespace 的**真实 ID**（十六进制串），填入仓库根 `wrangler.toml` 的 `[[kv_namespaces]].id`（本仓库已预填，无需改动）
+- ⚠️ 本项目为 wrangler 管理模式，**Cloudflare 后台 UI 手动添加的 KV 绑定不生效**，绑定只在 `wrangler.toml` 中声明才有效
 
 **2. 使用**
 - 重新部署一次（Push 后会自动触发）后，打开站点 → 左下角「系统设置与数据」→「云同步」
@@ -46,15 +45,13 @@
 **方式一：后台连接仓库（推荐，零配置）**
 - Cloudflare 控制台 → **Workers & Pages** → **Create** → **Pages** → 连接 GitHub 仓库 `chuzhong-study-workbench`
 - 构建命令留空、输出目录留空（已是单文件静态站）；Functions 会自动读取 `functions/` 目录
-- 部署后按上文「跨设备同步」绑定 KV（Variable name 必须填 `studybench_sync`）
+- 仓库内置 `wrangler.toml` 已声明 `studybench_sync` 绑定，git push 部署即自动带上，**无需在后台手动绑定 KV**（wrangler 模式下后台手动绑定无效）
 
 **方式二：本地命令行（可固化绑定，便于复现）**
 - 安装并登录：`npm i -g wrangler && wrangler login`
 - 预览：`wrangler pages dev .`
 - 部署：`wrangler pages deploy .`
-- KV 绑定仍走 Cloudflare 后台（同方式一），与 `wrangler.toml` 无关。
-  若想在 toml 里固化，须新增一个 `[[kv_namespaces]]` 块且 `id` 填**真实**的十六进制 namespace ID，
-  切勿保留 `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` 这类占位符，否则 Pages 构建会报
-  `Error 8000022: Invalid KV namespace ID` 导致部署失败。
+- KV 绑定已固化在仓库根 `wrangler.toml` 的 `[[kv_namespaces]]` 块（binding=`studybench_sync`，id=真实 namespace ID）。git push 部署时 Cloudflare 自动读取并应用该绑定；
+  切勿把 id 改回 `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` 之类占位符，否则 Pages 构建会报 `Error 8000022: Invalid KV namespace ID` 导致部署失败。
 
-> 无论哪种方式，**KV 绑定名都必须是 `studybench_sync`**，否则 `functions/api/sync.js` 读取不到会报错。修改绑定后需重新部署一次。
+> KV 绑定名固定为 **`studybench_sync`**（在 `wrangler.toml` 中声明），与 `functions/api/sync.js` 读取的 `env.studybench_sync` 对应。修改 `wrangler.toml` 后需重新部署一次。
