@@ -1277,9 +1277,10 @@
           <div id="memory-sub-poetry">
             <div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
               <span style="font-size:14px; color:var(--text-sub);">按 1, 3, 7 天三轮艾宾浩斯复习调度。当天连续忘记2次则次日再出。</span>
-              <div style="display:flex; gap:8px;">
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="btn btn-primary btn-sm" onclick="openAddPoetryModal()">+ 新增古诗文</button>
                 <button class="btn btn-outline btn-sm" onclick="togglePoetryMaskAll()">一键遮句自测</button>
+                <button class="btn btn-outline btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button>
               </div>
             </div>
             <div id="poetry-list-container"></div>
@@ -1483,6 +1484,58 @@
     </div>
   </div>
 
+  <!-- 按教材版本导入 Modal -->
+  <div id="editionImportModal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-title">
+        <span>📚 按教材版本导入教材库</span>
+        <button class="btn btn-outline btn-sm" onclick="closeEditionImportModal()">✕</button>
+      </div>
+      <p style="font-size:13px; color:var(--text-sub); margin-bottom:14px; line-height:1.6;">
+        选择孩子的教材版本与册数，一键载入对应的古诗文 / 课标词汇。载入后全部写进「我的」库，<b>可自由编辑、可删除</b>（不再是只读教材库），方便对照学校课本增删。
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">教材版本</label>
+        <select id="edition-select" class="form-control" onchange="populateEditionVolumes()"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">选择册数</label>
+        <select id="edition-vol-select" class="form-control"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">导入内容</label>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; padding:6px 0;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:14px;"><input type="checkbox" id="edition-inc-poetry" checked> 古诗文</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:14px;"><input type="checkbox" id="edition-inc-words" checked> 课标词汇</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="handleEditionImport()">一键导入所选教材</button>
+
+      <div style="height:1px; background:var(--border-color); margin:18px 0;"></div>
+
+      <p style="font-size:13px; color:var(--text-sub); margin-bottom:8px; line-height:1.6;">
+        <b>粘贴 / CSV 导入（精确还原学校课本）</b><br>
+        每行一项，用竖线 <code>|</code> 分隔字段：
+      </p>
+      <p style="font-size:12px; color:var(--text-sub); margin-bottom:8px; line-height:1.7;">
+        · 古诗文：<code>标题 | 作者 | 正文</code><br>
+        · 词汇：<code>单词 | 音标 | 释义 | 例句</code>
+      </p>
+      <div class="form-group">
+        <label class="form-label">导入类型</label>
+        <select id="paste-type" class="form-control">
+          <option value="poetry">古诗文</option>
+          <option value="words">课标词汇</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <textarea id="paste-content" class="form-control" style="min-height:120px;" placeholder="观沧海 | 曹操 | 东临碣石，以观沧海……"></textarea>
+      </div>
+      <button class="btn btn-outline" style="width:100%;" onclick="importFromPaste()">从粘贴内容导入到当前册</button>
+    </div>
+  </div>
+
   <!-- 设置与数据管理 Modal -->
   <div id="settingsModal" class="modal-backdrop">
     <div class="modal-box">
@@ -1536,6 +1589,7 @@
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn btn-outline btn-sm" onclick="clearOnlyDemoData()">只清除示例数据</button>
             <button class="btn btn-primary btn-sm" onclick="restoreDefaultLibrary()">恢复教材默认库</button>
+            <button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button>
           </div>
         </div>
 
@@ -1642,7 +1696,245 @@
     };
     function getSubjectsForVolume(v) { return SUBJECTS_BY_VOLUME[v] || SUBJECTS_BY_VOLUME['7上']; }
 
-    // 背诵库按册存储为对象 {volume: [...]}；缺册返回 []
+    // 统编版（全国主流，2016 年后统一教材）各册古诗文必背 + 英语课标核心词「整理版」预设
+    // 用途：①「教材版本导入」一键加载；②粘贴清单导入的参考结构。
+    // 说明：以下为按公开统编版教材整理的常用必背清单（古诗文以古诗 + 重点文言文为主），
+    // 不同学校/地区可能略有差异，导入后请对照孩子课本核对，可随意编辑/删除/补充（粘贴导入可精确还原）。
+    const EDITION_PRESETS = {
+      '统编版': {
+        '7上': {
+          poetry: [
+            { title:"观沧海", author:"曹操", content:"东临碣石，以观沧海。水何澹澹，山岛竦峙。树木丛生，百草丰茂。秋风萧瑟，洪波涌起。日月之行，若出其中；星汉灿烂，若出其里。幸甚至哉，歌以咏志。" },
+            { title:"闻王昌龄左迁龙标遥有此寄", author:"李白", content:"杨花落尽子规啼，闻道龙标过五溪。我寄愁心与明月，随君直到夜郎西。" },
+            { title:"次北固山下", author:"王湾", content:"客路青山外，行舟绿水前。潮平两岸阔，风正一帆悬。海日生残夜，江春入旧年。乡书何处达？归雁洛阳边。" },
+            { title:"天净沙·秋思", author:"马致远", content:"枯藤老树昏鸦，小桥流水人家，古道西风瘦马。夕阳西下，断肠人在天涯。" },
+            { title:"峨眉山月歌", author:"李白", content:"峨眉山月半轮秋，影入平羌江水流。夜发清溪向三峡，思君不见下渝州。" },
+            { title:"江南逢李龟年", author:"杜甫", content:"岐王宅里寻常见，崔九堂前几度闻。正是江南好风景，落花时节又逢君。" },
+            { title:"行军九日思长安故园", author:"岑参", content:"强欲登高去，无人送酒来。遥怜故园菊，应傍战场开。" },
+            { title:"夜上受降城闻笛", author:"李益", content:"回乐烽前沙似雪，受降城外月如霜。不知何处吹芦管，一夜征人尽望乡。" },
+            { title:"秋词(其一)", author:"刘禹锡", content:"自古逢秋悲寂寥，我言秋日胜春朝。晴空一鹤排云上，便引诗情到碧霄。" },
+            { title:"夜雨寄北", author:"李商隐", content:"君问归期未有期，巴山夜雨涨秋池。何当共剪西窗烛，却话巴山夜雨时。" },
+            { title:"十一月四日风雨大作(其二)", author:"陆游", content:"僵卧孤村不自哀，尚思为国戍轮台。夜阑卧听风吹雨，铁马冰河入梦来。" },
+            { title:"潼关", author:"谭嗣同", content:"终古高云簇此城，秋风吹散马蹄声。河流大野犹嫌束，山入潼关不解平。" },
+            { title:"《论语》十二章", author:"孔子及其弟子", content:"子曰：“学而时习之，不亦说乎？有朋自远方来，不亦乐乎？人不知而不愠，不亦君子乎？”——《学而》\n曾子曰：“吾日三省吾身：为人谋而不忠乎？与朋友交而不信乎？传不习乎？”——《学而》\n子曰：“吾十有五而志于学，三十而立，四十而不惑，五十而知天命，六十而耳顺，七十而从心所欲，不逾矩。”——《为政》\n子曰：“温故而知新，可以为师矣。”——《为政》\n子曰：“学而不思则罔，思而不学则殆。”——《为政》\n子曰：“贤哉，回也！一箪食，一瓢饮，在陋巷，人不堪其忧，回也不改其乐。贤哉，回也！”——《雍也》\n子曰：“知之者不如好之者，好之者不如乐之者。”——《雍也》\n子曰：“饭疏食，饮水，曲肱而枕之，乐亦在其中矣。不义而富且贵，于我如浮云。”——《述而》\n子曰：“三人行，必有我师焉。择其善者而从之，其不善者而改之。”——《述而》\n子在川上曰：“逝者如斯夫，不舍昼夜。”——《子罕》\n子曰：“三军可夺帅也，匹夫不可夺志也。”——《子罕》\n子夏曰：“博学而笃志，切问而近思，仁在其中矣。”——《子张》" },
+            { title:"诫子书", author:"诸葛亮", content:"夫君子之行，静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。夫学须静也，才须学也，非学无以广才，非志无以成学。淫慢则不能励精，险躁则不能治性。年与时驰，意与日去，遂成枯落，多不接世，悲守穷庐，将复何及！" },
+            { title:"狼", author:"蒲松龄", content:"一屠晚归，担中肉尽，止有剩骨。途中两狼，缀行甚远。\n屠惧，投以骨。一狼得骨止，一狼仍从。复投之，后狼止而前狼又至。骨已尽矣，而两狼之并驱如故。\n屠大窘，恐前后受其敌。顾野有麦场，场主积薪其中，苫蔽成丘。屠乃奔倚其下，弛担持刀。狼不敢前，眈眈相向。\n少时，一狼径去，其一犬坐于前。久之，目似瞑，意暇甚。屠暴起，以刀劈狼首，又数刀毙之。方欲行，转视积薪后，一狼洞其中，意将隧入以攻其后也。身已半入，止露尻尾。屠自后断其股，亦毙之。乃悟前狼假寐，盖以诱敌。\n狼亦黠矣，而顷刻两毙，禽兽之变诈几何哉？止增笑耳。" },
+            { title:"穿井得一人", author:"《吕氏春秋》", content:"宋之丁氏，家无井而出溉汲，常一人居外。及其家穿井，告人曰：“吾穿井得一人。”有闻而传之者：“丁氏穿井得一人。”国人道之，闻之于宋君。宋君令人问之于丁氏，丁氏对曰：“得一人之使，非得一人于井中也。”求闻之若此，不若无闻也。" },
+            { title:"杞人忧天", author:"《列子》", content:"杞国有人忧天地崩坠，身亡所寄，废寝食者。\n又有忧彼之所忧者，因往晓之，曰：“天，积气耳，亡处亡气。若屈伸呼吸，终日在天中行止，奈何忧崩坠乎？”\n其人曰：“天果积气，日月星宿，不当坠耶？”\n晓之者曰：“日月星宿，亦积气中之有光耀者，只使坠，亦不能有所中伤。”\n其人曰：“奈地坏何？”\n晓之者曰：“地，积块耳，充塞四虚，亡处亡块。若躇步跐蹈，终日在地上行止，奈何忧其坏？”\n其人舍然大喜，晓之者亦舍然大喜。" },
+            { title:"世说新语二则", author:"刘义庆", content:"【咏雪】谢太傅寒雪日内集，与儿女讲论文义。俄而雪骤，公欣然曰：“白雪纷纷何所似？”兄子胡儿曰：“撒盐空中差可拟。”兄女曰：“未若柳絮因风起。”公大笑乐。即公大兄无奕女，左将军王凝之妻也。\n【陈太丘与友期行】陈太丘与友期行，期日中。过中不至，太丘舍去，去后乃至。元方时年七岁，门外戏。客问元方：“尊君在不？”答曰：“待君久不至，已去。”友人便怒曰：“非人哉！与人期行，相委而去。”元方曰：“君与家君期日中。日中不至，则是无信；对子骂父，则是无礼。”友人惭，下车引之。元方入门不顾。" }
+          ],
+          words: [
+            { word:"ability", phonetic:"[əˈbɪləti]", meaning:"n. 能力；才能", example:"Practice improves speaking ability." },
+            { word:"accept", phonetic:"[əkˈsept]", meaning:"v. 接受；承认", example:"She accepted the invitation." },
+            { word:"achieve", phonetic:"[əˈtʃiːv]", meaning:"v. 实现；达到", example:"You can achieve your goals." },
+            { word:"active", phonetic:"[ˈæktɪv]", meaning:"adj. 积极的；活跃的", example:"Tom is active in class." },
+            { word:"address", phonetic:"[əˈdres]", meaning:"n. 地址 v. 解决", example:"Write your address." },
+            { word:"afraid", phonetic:"[əˈfreɪd]", meaning:"adj. 害怕的；担心的", example:"Don't be afraid of mistakes." },
+            { word:"agree", phonetic:"[əˈɡriː]", meaning:"v. 同意；赞成", example:"We agreed on this plan." },
+            { word:"alive", phonetic:"[əˈlaɪv]", meaning:"adj. 活着的；生机的", example:"Spring brings trees alive." },
+            { word:"allow", phonetic:"[əˈlaʊ]", meaning:"v. 允许；准许", example:"Teacher allowed 10 mins." },
+            { word:"almost", phonetic:"[ˈɔːlməʊst]", meaning:"adv. 几乎；差不多", example:"It took almost 2 hours." },
+            { word:"angry", phonetic:"[ˈæŋɡri]", meaning:"adj. 生气的", example:"Don't be angry with me." },
+            { word:"answer", phonetic:"[ˈɑːnsə(r)]", meaning:"n./v. 回答；答案", example:"Please answer the question." },
+            { word:"anyone", phonetic:"[ˈeniwʌn]", meaning:"pron. 任何人", example:"Is anyone here?" },
+            { word:"appear", phonetic:"[əˈpɪə(r)]", meaning:"v. 出现；显得", example:"Stars appear at night." },
+            { word:"around", phonetic:"[əˈraʊnd]", meaning:"prep./adv. 围绕；大约", example:"Look around you." }
+          ]
+        },
+        '7下': {
+          poetry: [
+            { title:"木兰诗", author:"《乐府诗集》", content:"唧唧复唧唧，木兰当户织。不闻机杼声，唯闻女叹息。\n问女何所思，问女何所忆。女亦无所思，女亦无所忆。昨夜见军帖，可汗大点兵，军书十二卷，卷卷有爷名。阿爷无大儿，木兰无长兄，愿为市鞍马，从此替爷征。\n东市买骏马，西市买鞍鞯，南市买辔头，北市买长鞭。旦辞爷娘去，暮宿黄河边，不闻爷娘唤女声，但闻黄河流水鸣溅溅。旦辞黄河去，暮至黑山头，不闻爷娘唤女声，但闻燕山胡骑鸣啾啾。\n万里赴戎机，关山度若飞。朔气传金柝，寒光照铁衣。将军百战死，壮士十年归。\n归来见天子，天子坐明堂。策勋十二转，赏赐百千强。可汗问所欲，木兰不用尚书郎，愿驰千里足，送儿还故乡。\n爷娘闻女来，出郭相扶将；阿姊闻妹来，当户理红妆；小弟闻姊来，磨刀霍霍向猪羊。开我东阁门，坐我西阁床，脱我战时袍，著我旧时裳。当窗理云鬓，对镜帖花黄。出门看火伴，火伴皆惊忙：同行十二年，不知木兰是女郎。\n雄兔脚扑朔，雌兔眼迷离；双兔傍地走，安能辨我是雄雌？" },
+            { title:"竹里馆", author:"王维", content:"独坐幽篁里，弹琴复长啸。深林人不知，明月来相照。" },
+            { title:"春夜洛城闻笛", author:"李白", content:"谁家玉笛暗飞声，散入春风满洛城。此夜曲中闻折柳，何人不起故园情。" },
+            { title:"逢入京使", author:"岑参", content:"故园东望路漫漫，双袖龙钟泪不干。马上相逢无纸笔，凭君传语报平安。" },
+            { title:"晚春", author:"韩愈", content:"草树知春不久归，百般红紫斗芳菲。杨花榆荚无才思，惟解漫天作雪飞。" },
+            { title:"登幽州台歌", author:"陈子昂", content:"前不见古人，后不见来者。念天地之悠悠，独怆然而涕下！" },
+            { title:"望岳", author:"杜甫", content:"岱宗夫如何？齐鲁青未了。造化钟神秀，阴阳割昏晓。荡胸生曾云，决眦入归鸟。会当凌绝顶，一览众山小。" },
+            { title:"游山西村", author:"陆游", content:"莫笑农家腊酒浑，丰年留客足鸡豚。山重水复疑无路，柳暗花明又一村。箫鼓追随春社近，衣冠简朴古风存。从今若许闲乘月，拄杖无时夜叩门。" },
+            { title:"己亥杂诗(其五)", author:"龚自珍", content:"浩荡离愁白日斜，吟鞭东指即天涯。落红不是无情物，化作春泥更护花。" },
+            { title:"泊秦淮", author:"杜牧", content:"烟笼寒水月笼沙，夜泊秦淮近酒家。商女不知亡国恨，隔江犹唱后庭花。" },
+            { title:"黄鹤楼", author:"崔颢", content:"昔人已乘黄鹤去，此地空余黄鹤楼。黄鹤一去不复返，白云千载空悠悠。晴川历历汉阳树，芳草萋萋鹦鹉洲。日暮乡关何处是？烟波江上使人愁。" },
+            { title:"使至塞上", author:"王维", content:"单车欲问边，属国过居延。征蓬出汉塞，归雁入胡天。大漠孤烟直，长河落日圆。萧关逢候骑，都护在燕然。" },
+            { title:"钱塘湖春行", author:"白居易", content:"孤山寺北贾亭西，水面初平云脚低。几处早莺争暖树，谁家新燕啄春泥。乱花渐欲迷人眼，浅草才能没马蹄。最爱湖东行不足，绿杨阴里白沙堤。" },
+            { title:"饮酒(其五)", author:"陶渊明", content:"结庐在人境，而无车马喧。问君何能尔？心远地自偏。采菊东篱下，悠然见南山。山气日夕佳，飞鸟相与还。此中有真意，欲辨已忘言。" },
+            { title:"春望", author:"杜甫", content:"国破山河在，城春草木深。感时花溅泪，恨别鸟惊心。烽火连三月，家书抵万金。白头搔更短，浑欲不胜簪。" },
+            { title:"雁门太守行", author:"李贺", content:"黑云压城城欲摧，甲光向日金鳞开。角声满天秋色里，塞上燕脂凝夜紫。半卷红旗临易水，霜重鼓寒声不起。报君黄金台上意，提携玉龙为君死。" },
+            { title:"赤壁", author:"杜牧", content:"折戟沉沙铁未销，自将磨洗认前朝。东风不与周郎便，铜雀春深锁二乔。" },
+            { title:"渔家傲", author:"李清照", content:"天接云涛连晓雾，星河欲转千帆舞。仿佛梦魂归帝所，闻天语，殷勤问我归何处。我报路长嗟日暮，学诗谩有惊人句。九万里风鹏正举。风休住，蓬舟吹取三山去！" },
+            { title:"陋室铭", author:"刘禹锡", content:"山不在高，有仙则名。水不在深，有龙则灵。斯是陋室，惟吾德馨。苔痕上阶绿，草色入帘青。谈笑有鸿儒，往来无白丁。可以调素琴，阅金经。无丝竹之乱耳，无案牍之劳形。南阳诸葛庐，西蜀子云亭。孔子云：何陋之有？" },
+            { title:"爱莲说", author:"周敦颐", content:"水陆草木之花，可爱者甚蕃。晋陶渊明独爱菊。自李唐来，世人甚爱牡丹。予独爱莲之出淤泥而不染，濯清涟而不妖，中通外直，不蔓不枝，香远益清，亭亭净植，可远观而不可亵玩焉。\n予谓菊，花之隐逸者也；牡丹，花之富贵者也；莲，花之君子者也。噫！菊之爱，陶后鲜有闻。莲之爱，同予者何人？牡丹之爱，宜乎众矣。" },
+            { title:"孙权劝学", author:"司马光", content:"初，权谓吕蒙曰：“卿今当涂掌事，不可不学！”蒙辞以军中多务。权曰：“孤岂欲卿治经为博士邪！但当涉猎，见往事耳。卿言多务，孰若孤？孤常读书，自以为大有所益。”蒙乃始就学。\n及鲁肃过寻阳，与蒙论议，大惊曰：“卿今者才略，非复吴下阿蒙！”蒙曰：“士别三日，即更刮目相待，大兄何见事之晚乎！”肃遂拜蒙母，结友而别。" },
+            { title:"卖油翁", author:"欧阳修", content:"陈康肃公善射，当世无双，公亦以此自矜。尝射于家圃，有卖油翁释担而立，睨之久而不去。见其发矢十中八九，但微颔之。\n康肃问曰：“汝亦知射乎？吾射不亦精乎？”翁曰：“无他，但手熟尔。”康肃忿然曰：“尔安敢轻吾射！”翁曰：“以我酌油知之。”乃取一葫芦置于地，以钱覆其口，徐以杓酌油沥之，自钱孔入，而钱不湿。因曰：“我亦无他，惟手熟尔。”康肃笑而遣之。" }
+          ],
+          words: [
+            { word:"background", phonetic:"[ˈbækɡraʊnd]", meaning:"n. 背景", example:"The background of the story." },
+            { word:"balance", phonetic:"[ˈbæləns]", meaning:"n. 平衡 v. 使平衡", example:"Keep a balance." },
+            { word:"basic", phonetic:"[ˈbeɪsɪk]", meaning:"adj. 基本的；基础的", example:"basic rules" },
+            { word:"bear", phonetic:"[beə(r)]", meaning:"v. 承受；忍受 n. 熊", example:"She can't bear noise." },
+            { word:"beautiful", phonetic:"[ˈbjuːtɪfl]", meaning:"adj. 美丽的", example:"a beautiful sunset" },
+            { word:"because", phonetic:"[bɪˈkɒz]", meaning:"conj. 因为", example:"because it rained" },
+            { word:"camp", phonetic:"[kæmp]", meaning:"n./v. 营地；露营", example:"summer camp" },
+            { word:"care", phonetic:"[keə(r)]", meaning:"n./v. 关心；照顾", example:"Take care of yourself." },
+            { word:"center", phonetic:"[ˈsentə(r)]", meaning:"n. 中心", example:"in the center" },
+            { word:"cheer", phonetic:"[tʃɪə(r)]", meaning:"v./n. 欢呼；加油", example:"cheer for the team" },
+            { word:"clear", phonetic:"[klɪə(r)]", meaning:"adj. 清晰的 v. 清除", example:"clear water" },
+            { word:"comfortable", phonetic:"[ˈkʌmftəbl]", meaning:"adj. 舒服的", example:"a comfortable chair" },
+            { word:"common", phonetic:"[ˈkɒmən]", meaning:"adj. 普通的；共同的", example:"common mistake" },
+            { word:"create", phonetic:"[kriˈeɪt]", meaning:"v. 创造", example:"create a plan" },
+            { word:"culture", phonetic:"[ˈkʌltʃə(r)]", meaning:"n. 文化", example:"Chinese culture" }
+          ]
+        },
+        '8上': {
+          poetry: [
+            { title:"野望", author:"王绩", content:"东皋薄暮望，徙倚欲何依。树树皆秋色，山山唯落晖。牧人驱犊返，猎马带禽归。相顾无相识，长歌怀采薇。" },
+            { title:"黄鹤楼", author:"崔颢", content:"昔人已乘黄鹤去，此地空余黄鹤楼。黄鹤一去不复返，白云千载空悠悠。晴川历历汉阳树，芳草萋萋鹦鹉洲。日暮乡关何处是？烟波江上使人愁。" },
+            { title:"使至塞上", author:"王维", content:"单车欲问边，属国过居延。征蓬出汉塞，归雁入胡天。大漠孤烟直，长河落日圆。萧关逢候骑，都护在燕然。" },
+            { title:"渡荆门送别", author:"李白", content:"渡远荆门外，来从楚国游。山随平野尽，江入大荒流。月下飞天镜，云生结海楼。仍怜故乡水，万里送行舟。" },
+            { title:"钱塘湖春行", author:"白居易", content:"孤山寺北贾亭西，水面初平云脚低。几处早莺争暖树，谁家新燕啄春泥。乱花渐欲迷人眼，浅草才能没马蹄。最爱湖东行不足，绿杨阴里白沙堤。" },
+            { title:"庭中有奇树", author:"《古诗十九首》", content:"庭中有奇树，绿叶发华滋。攀条折其荣，将以遗所思。馨香盈怀袖，路远莫致之。此物何足贵？但感别经时。" },
+            { title:"龟虽寿", author:"曹操", content:"神龟虽寿，犹有竟时；腾蛇乘雾，终为土灰。老骥伏枥，志在千里；烈士暮年，壮心不已。盈缩之期，不但在天；养怡之福，可得永年。幸甚至哉，歌以咏志。" },
+            { title:"赠从弟(其二)", author:"刘桢", content:"亭亭山上松，瑟瑟谷中风。风声一何盛，松枝一何劲！冰霜正惨凄，终岁常端正。岂不罹凝寒？松柏有本性。" },
+            { title:"梁甫行", author:"曹植", content:"八方各异气，千里殊风雨。剧哉边海民，寄身于草野。妻子象禽兽，行止依林阻。柴门何萧条，狐兔翔我宇。" },
+            { title:"饮酒(其五)", author:"陶渊明", content:"结庐在人境，而无车马喧。问君何能尔？心远地自偏。采菊东篱下，悠然见南山。山气日夕佳，飞鸟相与还。此中有真意，欲辨已忘言。" },
+            { title:"春望", author:"杜甫", content:"国破山河在，城春草木深。感时花溅泪，恨别鸟惊心。烽火连三月，家书抵万金。白头搔更短，浑欲不胜簪。" },
+            { title:"雁门太守行", author:"李贺", content:"黑云压城城欲摧，甲光向日金鳞开。角声满天秋色里，塞上燕脂凝夜紫。半卷红旗临易水，霜重鼓寒声不起。报君黄金台上意，提携玉龙为君死。" },
+            { title:"赤壁", author:"杜牧", content:"折戟沉沙铁未销，自将磨洗认前朝。东风不与周郎便，铜雀春深锁二乔。" },
+            { title:"渔家傲", author:"李清照", content:"天接云涛连晓雾，星河欲转千帆舞。仿佛梦魂归帝所，闻天语，殷勤问我归何处。我报路长嗟日暮，学诗谩有惊人句。九万里风鹏正举。风休住，蓬舟吹取三山去！" },
+            { title:"三峡", author:"郦道元", content:"自三峡七百里中，两岸连山，略无阙处。重岩叠嶂，隐天蔽日，自非亭午夜分，不见曦月。\n至于夏水襄陵，沿溯阻绝。或王命急宣，有时朝发白帝，暮到江陵，其间千二百里，虽乘奔御风，不以疾也。\n春冬之时，则素湍绿潭，回清倒影，绝巘多生怪柏，悬泉瀑布，飞漱其间，清荣峻茂，良多趣味。\n每至晴初霜旦，林寒涧肃，常有高猿长啸，属引凄异，空谷传响，哀转久绝。故渔者歌曰：“巴东三峡巫峡长，猿鸣三声泪沾裳。”" },
+            { title:"记承天寺夜游", author:"苏轼", content:"元丰六年十月十二日夜，解衣欲睡，月色入户，欣然起行。念无与为乐者，遂至承天寺寻张怀民。怀民亦未寝，相与步于中庭。庭下如积水空明，水中藻、荇交横，盖竹柏影也。何夜无月？何处无竹柏？但少闲人如吾两人者耳。" },
+            { title:"富贵不能淫", author:"《孟子》", content:"景春曰：“公孙衍、张仪岂不诚大丈夫哉？一怒而诸侯惧，安居而天下熄。”\n孟子曰：“是焉得为大丈夫乎？子未学礼乎？丈夫之冠也，父命之；女子之嫁也，母命之，往送之门，戒之曰：‘往之女家，必敬必戒，无违夫子！’以顺为正者，妾妇之道也。居天下之广居，立天下之正位，行天下之大道。得志，与民由之；不得志，独行其道。富贵不能淫，贫贱不能移，威武不能屈，此之谓大丈夫。”" },
+            { title:"生于忧患，死于安乐", author:"《孟子》", content:"舜发于畎亩之中，傅说举于版筑之间，胶鬲举于鱼盐之中，管夷吾举于士，孙叔敖举于海，百里奚举于市。故天将降大任于是人也，必先苦其心志，劳其筋骨，饿其体肤，空乏其身，行拂乱其所为，所以动心忍性，曾益其所不能。\n人恒过，然后能改；困于心，衡于虑，而后作；征于色，发于声，而后喻。入则无法家拂士，出则无敌国外患者，国恒亡。然后知生于忧患而死于安乐也。" },
+            { title:"桃花源记", author:"陶渊明", content:"晋太元中，武陵人捕鱼为业。缘溪行，忘路之远近。忽逢桃花林，夹岸数百步，中无杂树，芳草鲜美，落英缤纷。渔人甚异之，复前行，欲穷其林。\n林尽水源，便得一山，山有小口，仿佛若有光。便舍船，从口入。初极狭，才通人。复行数十步，豁然开朗。土地平旷，屋舍俨然，有良田、美池、桑竹之属。阡陌交通，鸡犬相闻。其中往来种作，男女衣着，悉如外人。黄发垂髫，并怡然自乐。\n见渔人，乃大惊，问所从来。具答之。便要还家，设酒杀鸡作食。村中闻有此人，咸来问讯。自云先世避秦时乱，率妻子邑人来此绝境，不复出焉，遂与外人间隔。问今是何世，乃不知有汉，无论魏晋。此人一一为具言所闻，皆叹惋。余人各复延至其家，皆出酒食。停数日，辞去。此中人语云：“不足为外人道也。”\n既出，得其船，便扶向路，处处志之。及郡下，诣太守，说如此。太守即遣人随其往，寻向所志，遂迷，不复得路。\n南阳刘子骥，高尚士也，闻之，欣然规往。未果，寻病终。后遂无问津者。" },
+            { title:"小石潭记", author:"柳宗元", content:"从小丘西行百二十步，隔篁竹，闻水声，如鸣珮环，心乐之。伐竹取道，下见小潭，水尤清冽。全石以为底，近岸，卷石底以出，为坻，为屿，为嵁，为岩。青树翠蔓，蒙络摇缀，参差披拂。\n潭中鱼可百许头，皆若空游无所依，日光下澈，影布石上。佁然不动，俶尔远逝，往来翕忽，似与游者相乐。\n潭西南而望，斗折蛇行，明灭可见。其岸势犬牙差互，不可知其源。\n坐潭上，四面竹树环合，寂寥无人，凄神寒骨，悄怆幽邃。以其境过清，不可久居，乃记之而去。\n同游者：吴武陵，龚古，余弟宗玄。隶而从者，崔氏二小生，曰恕己，曰奉壹。" }
+          ],
+          words: [
+            { word:"ability", phonetic:"[əˈbɪləti]", meaning:"n. 能力", example:"have the ability" },
+            { word:"advantage", phonetic:"[ədˈvɑːntɪdʒ]", meaning:"n. 优势", example:"have an advantage" },
+            { word:"ancient", phonetic:"[ˈeɪnʃənt]", meaning:"adj. 古代的；古老的", example:"ancient history" },
+            { word:"arrive", phonetic:"[əˈraɪv]", meaning:"v. 到达", example:"arrive at school" },
+            { word:"attack", phonetic:"[əˈtæk]", meaning:"v./n. 攻击；袭击", example:"under attack" },
+            { word:"attract", phonetic:"[əˈtrækt]", meaning:"v. 吸引", example:"attract attention" },
+            { word:"average", phonetic:"[ˈævərɪdʒ]", meaning:"adj. 平均的 n. 平均", example:"on average" },
+            { word:"beauty", phonetic:"[ˈbjuːti]", meaning:"n. 美丽；美人", example:"natural beauty" },
+            { word:"believe", phonetic:"[bɪˈliːv]", meaning:"v. 相信", example:"I believe you." },
+            { word:"brave", phonetic:"[breɪv]", meaning:"adj. 勇敢的", example:"a brave soldier" },
+            { word:"build", phonetic:"[bɪld]", meaning:"v. 修建；建立", example:"build a house" },
+            { word:"burn", phonetic:"[bɜːn]", meaning:"v. 燃烧", example:"burn the wood" },
+            { word:"camera", phonetic:"[ˈkæmərə]", meaning:"n. 照相机", example:"take a photo" },
+            { word:"capital", phonetic:"[ˈkæpɪtl]", meaning:"n. 首都；资本", example:"the capital city" },
+            { word:"careful", phonetic:"[ˈkeəfl]", meaning:"adj. 小心的", example:"be careful" }
+          ]
+        },
+        '8下': {
+          poetry: [
+            { title:"关雎", author:"《诗经》", content:"关关雎鸠，在河之洲。窈窕淑女，君子好逑。\n参差荇菜，左右流之。窈窕淑女，寤寐求之。\n求之不得，寤寐思服。悠哉悠哉，辗转反侧。\n参差荇菜，左右采之。窈窕淑女，琴瑟友之。\n参差荇菜，左右芼之。窈窕淑女，钟鼓乐之。" },
+            { title:"蒹葭", author:"《诗经》", content:"蒹葭苍苍，白露为霜。所谓伊人，在水一方。溯洄从之，道阻且长。溯游从之，宛在水中央。\n蒹葭萋萋，白露未晞。所谓伊人，在水之湄。溯洄从之，道阻且跻。溯游从之，宛在水中坻。\n蒹葭采采，白露未已。所谓伊人，在水之涘。溯洄从之，道阻且右。溯游从之，宛在水中沚。" },
+            { title:"式微", author:"《诗经》", content:"式微式微，胡不归？微君之故，胡为乎中露？\n式微式微，胡不归？微君之躬，胡为乎泥中？" },
+            { title:"子衿", author:"《诗经》", content:"青青子衿，悠悠我心。纵我不往，子宁不嗣音？\n青青子佩，悠悠我思。纵我不往，子宁不来？\n挑兮达兮，在城阙兮。一日不见，如三月兮。" },
+            { title:"送杜少府之任蜀州", author:"王勃", content:"城阙辅三秦，风烟望五津。与君离别意，同是宦游人。海内存知己，天涯若比邻。无为在歧路，儿女共沾巾。" },
+            { title:"望洞庭湖赠张丞相", author:"孟浩然", content:"八月湖水平，涵虚混太清。气蒸云梦泽，波撼岳阳城。欲济无舟楫，端居耻圣明。坐观垂钓者，徒有羡鱼情。" },
+            { title:"石壕吏", author:"杜甫", content:"暮投石壕村，有吏夜捉人。老翁逾墙走，老妇出门看。\n吏呼一何怒！妇啼一何苦！听妇前致词：三男邺城戍。一男附书至，二男新战死。存者且偷生，死者长已矣！室中更无人，惟有乳下孙。有孙母未去，出入无完裙。老妪力虽衰，请从吏夜归。急应河阳役，犹得备晨炊。\n夜久语声绝，如闻泣幽咽。天明登前途，独与老翁别。" },
+            { title:"茅屋为秋风所破歌", author:"杜甫", content:"八月秋高风怒号，卷我屋上三重茅。茅飞渡江洒江郊，高者挂罥长林梢，下者飘转沉塘坳。\n南村群童欺我老无力，忍能对面为盗贼。公然抱茅入竹去，唇焦口燥呼不得，归来倚杖自叹息。\n俄顷风定云墨色，秋天漠漠向昏黑。布衾多年冷似铁，娇儿恶卧踏里裂。床头屋漏无干处，雨脚如麻未断绝。自经丧乱少睡眠，长夜沾湿何由彻！\n安得广厦千万间，大庇天下寒士俱欢颜！风雨不动安如山。呜呼！何时眼前突兀见此屋，吾庐独破受冻死亦足！" },
+            { title:"卖炭翁", author:"白居易", content:"卖炭翁，伐薪烧炭南山中。满面尘灰烟火色，两鬓苍苍十指黑。卖炭得钱何所营？身上衣裳口中食。可怜身上衣正单，心忧炭贱愿天寒。\n夜来城外一尺雪，晓驾炭车辗冰辙。牛困人饥日已高，市南门外泥中歇。翩翩两骑来是谁？黄衣使者白衫儿。手把文书口称敕，回车叱牛牵向北。一车炭，千余斤，宫使驱将惜不得。半匹红纱一丈绫，系向牛头充炭直。" },
+            { title:"题破山寺后禅院", author:"常建", content:"清晨入古寺，初日照高林。曲径通幽处，禅房花木深。山光悦鸟性，潭影空人心。万籁此都寂，但余钟磬音。" },
+            { title:"送友人", author:"李白", content:"青山横北郭，白水绕东城。此地一为别，孤蓬万里征。浮云游子意，落日故人情。挥手自兹去，萧萧班马鸣。" },
+            { title:"卜算子·黄州定慧院寓居作", author:"苏轼", content:"缺月挂疏桐，漏断人初静。谁见幽人独往来，缥缈孤鸿影。\n惊起却回头，有恨无人省。拣尽寒枝不肯栖，寂寞沙洲冷。" },
+            { title:"卜算子·咏梅", author:"陆游", content:"驿外断桥边，寂寞开无主。已是黄昏独自愁，更着风和雨。\n无意苦争春，一任群芳妒。零落成泥碾作尘，只有香如故。" },
+            { title:"北冥有鱼", author:"《庄子》", content:"北冥有鱼，其名为鲲。鲲之大，不知其几千里也；化而为鸟，其名为鹏。鹏之背，不知其几千里也；怒而飞，其翼若垂天之云。是鸟也，海运则将徙于南冥。南冥者，天池也。《齐谐》者，志怪者也。《谐》之言曰：“鹏之徙于南冥也，水击三千里，抟扶摇而上者九万里，去以六月息者也。”\n野马也，尘埃也，生物之以息相吹也。天之苍苍，其正色邪？其远而无所至极邪？其视下也，亦若是则已矣。\n且夫水之积也不厚，则其负大舟也无力。风之积也不厚，则其负大翼也无力。故九万里，则风斯在下矣，而后乃今培风；背负青天，而莫之夭阏者，而后乃今将图南。\n蜩与学鸠笑之曰：“我决起而飞，抢榆枋而止，时则不至，而控于地而已矣，奚以之九万里而南为？”适莽苍者，三餐而反，腹犹果然；适百里者，宿舂粮；适千里者，三月聚粮。之二虫又何知！" },
+            { title:"虽有嘉肴", author:"《礼记》", content:"虽有嘉肴，弗食，不知其旨也；虽有至道，弗学，不知其善也。是故学然后知不足，教然后知困。知不足，然后能自反也；知困，然后能自强也。故曰：教学相长也。《兑命》曰“学学半”，其此之谓乎！" },
+            { title:"大道之行也", author:"《礼记》", content:"大道之行也，天下为公。选贤与能，讲信修睦。故人不独亲其亲，不独子其子，使老有所终，壮有所用，幼有所长，矜、寡、孤、独、废疾者皆有所养，男有分，女有归。货恶其弃于地也，不必藏于己；力恶其不出于身也，不必为己。是故谋闭而不兴，盗窃乱贼而不作，故外户而不闭。是谓大同。" },
+            { title:"马说", author:"韩愈", content:"世皆谓伯乐善相马，而千里马常有，而伯乐不常有。故虽有名马，祗辱于奴隶人之手，骈死于槽枥之间，不以千里称也。\n马之千里者，一食或尽粟一石。食马者不知其能千里而食也。是马也，虽有千里之能，食不饱，力不足，才美不外见，且欲与常马等不可得，安求其能千里也？\n策之不以其道，食之不能尽其材，鸣之而不能通其意，执策而临之，曰：“天下无马！”呜呼！其真无马邪？其真不知马也！" }
+          ],
+          words: [
+            { word:"advantage", phonetic:"[ədˈvɑːntɪdʒ]", meaning:"n. 优势", example:"has an advantage" },
+            { word:"afford", phonetic:"[əˈfɔːd]", meaning:"v. 买得起；承担", example:"can't afford it" },
+            { word:"against", phonetic:"[əˈɡenst]", meaning:"prep. 反对；倚靠", example:"play against" },
+            { word:"alive", phonetic:"[əˈlaɪv]", meaning:"adj. 活着的", example:"stay alive" },
+            { word:"allow", phonetic:"[əˈlaʊ]", meaning:"v. 允许", example:"allow me to" },
+            { word:"ancient", phonetic:"[ˈeɪnʃənt]", meaning:"adj. 古代的", example:"ancient times" },
+            { word:"appear", phonetic:"[əˈpɪə(r)]", meaning:"v. 出现", example:"appear suddenly" },
+            { word:"argue", phonetic:"[ˈɑːɡjuː]", meaning:"v. 争论；论证", example:"argue with" },
+            { word:"article", phonetic:"[ˈɑːtɪkl]", meaning:"n. 文章；物品", example:"write an article" },
+            { word:"attend", phonetic:"[əˈtend]", meaning:"v. 参加；照料", example:"attend school" },
+            { word:"avoid", phonetic:"[əˈvɔɪd]", meaning:"v. 避免", example:"avoid mistakes" },
+            { word:"behave", phonetic:"[bɪˈheɪv]", meaning:"v. 表现；举止", example:"behave well" },
+            { word:"belong", phonetic:"[bɪˈlɒŋ]", meaning:"v. 属于", example:"belong to me" },
+            { word:"breathe", phonetic:"[briːð]", meaning:"v. 呼吸", example:"breathe deeply" },
+            { word:"check", phonetic:"[tʃek]", meaning:"v./n. 检查；核对", example:"check your work" }
+          ]
+        },
+        '9上': {
+          poetry: [
+            { title:"行路难(其一)", author:"李白", content:"金樽清酒斗十千，玉盘珍羞直万钱。停杯投箸不能食，拔剑四顾心茫然。欲渡黄河冰塞川，将登太行雪满山。闲来垂钓碧溪上，忽复乘舟梦日边。行路难！行路难！多岐路，今安在？长风破浪会有时，直挂云帆济沧海。" },
+            { title:"酬乐天扬州初逢席上见赠", author:"刘禹锡", content:"巴山楚水凄凉地，二十三年弃置身。怀旧空吟闻笛赋，到乡翻似烂柯人。沉舟侧畔千帆过，病树前头万木春。今日听君歌一曲，暂凭杯酒长精神。" },
+            { title:"水调歌头", author:"苏轼", content:"明月几时有？把酒问青天。不知天上宫阙，今夕是何年。我欲乘风归去，又恐琼楼玉宇，高处不胜寒。起舞弄清影，何似在人间。\n转朱阁，低绮户，照无眠。不应有恨，何事长向别时圆？人有悲欢离合，月有阴晴圆缺，此事古难全。但愿人长久，千里共婵娟。" },
+            { title:"月夜忆舍弟", author:"杜甫", content:"戍鼓断人行，边秋一雁声。露从今夜白，月是故乡明。有弟皆分散，无家问死生。寄书长不达，况乃未休兵。" },
+            { title:"长沙过贾谊宅", author:"刘长卿", content:"三年谪宦此栖迟，万古惟留楚客悲。秋草独寻人去后，寒林空见日斜时。汉文有道恩犹薄，湘水无情吊岂知？寂寂江山摇落处，怜君何事到天涯！" },
+            { title:"左迁至蓝关示侄孙湘", author:"韩愈", content:"一封朝奏九重天，夕贬潮州路八千。欲为圣明除弊事，肯将衰朽惜残年！云横秦岭家何在？雪拥蓝关马不前。知汝远来应有意，好收吾骨瘴江边。" },
+            { title:"商山早行", author:"温庭筠", content:"晨起动征铎，客行悲故乡。鸡声茅店月，人迹板桥霜。槲叶落山路，枳花明驿墙。因思杜陵梦，凫雁满回塘。" },
+            { title:"咸阳城东楼", author:"许浑", content:"一上高城万里愁，蒹葭杨柳似汀洲。溪云初起日沉阁，山雨欲来风满楼。鸟下绿芜秦苑夕，蝉鸣黄叶汉宫秋。行人莫问当年事，故国东来渭水流。" },
+            { title:"无题", author:"李商隐", content:"相见时难别亦难，东风无力百花残。春蚕到死丝方尽，蜡炬成灰泪始干。晓镜但愁云鬓改，夜吟应觉月光寒。蓬山此去无多路，青鸟殷勤为探看。" },
+            { title:"行香子", author:"秦观", content:"树绕村庄，水满陂塘。倚东风，豪兴徜徉。小园几许，收尽春光。有桃花红，李花白，菜花黄。\n远远围墙，隐隐茅堂。飏青旗，流水桥旁。偶然乘兴，步过东冈。正莺儿啼，燕儿舞，蝶儿忙。" },
+            { title:"丑奴儿·书博山道中壁", author:"辛弃疾", content:"少年不识愁滋味，爱上层楼。爱上层楼，为赋新词强说愁。而今识尽愁滋味，欲说还休。欲说还休，却道“天凉好个秋”！" },
+            { title:"岳阳楼记", author:"范仲淹", content:"庆历四年春，滕子京谪守巴陵郡。越明年，政通人和，百废具兴，乃重修岳阳楼，增其旧制，刻唐贤今人诗赋于其上，属予作文以记之。\n予观夫巴陵胜状，在洞庭一湖。衔远山，吞长江，浩浩汤汤，横无际涯，朝晖夕阴，气象万千，此则岳阳楼之大观也，前人之述备矣。然则北通巫峡，南极潇湘，迁客骚人，多会于此，览物之情，得无异乎？\n若夫淫雨霏霏，连月不开，阴风怒号，浊浪排空，日星隐曜，山岳潜形，商旅不行，樯倾楫摧，薄暮冥冥，虎啸猿啼。登斯楼也，则有去国怀乡，忧谗畏讥，满目萧然，感极而悲者矣。\n至若春和景明，波澜不惊，上下天光，一碧万顷，沙鸥翔集，锦鳞游泳，岸芷汀兰，郁郁青青。而或长烟一空，皓月千里，浮光跃金，静影沉璧，渔歌互答，此乐何极！登斯楼也，则有心旷神怡，宠辱偕忘，把酒临风，其喜洋洋者矣。\n嗟夫！予尝求古仁人之心，或异二者之为，何哉？不以物喜，不以己悲，居庙堂之高则忧其民，处江湖之远则忧其君。是进亦忧，退亦忧。然则何时而乐耶？其必曰“先天下之忧而忧，后天下之乐而乐”乎！噫！微斯人，吾谁与归？\n时六年九月十五日。" },
+            { title:"醉翁亭记", author:"欧阳修", content:"环滁皆山也。其西南诸峰，林壑尤美，望之蔚然而深秀者，琅琊也。山行六七里，渐闻水声潺潺，而泻出于两峰之间者，酿泉也。峰回路转，有亭翼然临于泉上者，醉翁亭也。作亭者谁？山之僧智仙也。名之者谁？太守自谓也。太守与客来饮于此，饮少辄醉，而年又最高，故自号曰醉翁也。醉翁之意不在酒，在乎山水之间也。山水之乐，得之心而寓之酒也。\n若夫日出而林霏开，云归而岩穴暝，晦明变化者，山间之朝暮也。野芳发而幽香，佳木秀而繁阴，风霜高洁，水落而石出者，山间之四时也。朝而往，暮而归，四时之景不同，而乐亦无穷也。\n至于负者歌于途，行者休于树，前者呼，后者应，伛偻提携，往来而不绝者，滁人游也。临溪而渔，溪深而鱼肥，酿泉为酒，泉香而酒洌，山肴野蔌，杂然而前陈者，太守宴也。宴酣之乐，非丝非竹，射者中，弈者胜，觥筹交错，起坐而喧哗者，众宾欢也。苍颜白发，颓然乎其间者，太守醉也。\n已而夕阳在山，人影散乱，太守归而宾客从也。树林阴翳，鸣声上下，游人去而禽鸟乐也。然而禽鸟知山林之乐，而不知人之乐；人知从太守游而乐，而不知太守之乐其乐也。醉能同其乐，醒能述以文者，太守也。太守谓谁？庐陵欧阳修也。" },
+            { title:"湖心亭看雪", author:"张岱", content:"崇祯五年十二月，余住西湖。大雪三日，湖中人鸟声俱绝。是日更定矣，余拏一小舟，拥毳衣炉火，独往湖心亭看雪。雾凇沆砀，天与云与山与水，上下一白，湖上影子，惟长堤一痕、湖心亭一点、与余舟一芥、舟中人两三粒而已。\n到亭上，有两人铺毡对坐，一童子烧酒炉正沸。见余大喜曰：“湖中焉得更有此人！”拉余同饮。余强饮三大白而别。问其姓氏，是金陵人，客此。及下船，舟子喃喃曰：“莫说相公痴，更有痴似相公者。”" },
+            { title:"鱼我所欲也", author:"《孟子》", content:"鱼，我所欲也；熊掌，亦我所欲也。二者不可得兼，舍鱼而取熊掌者也。生，亦我所欲也；义，亦我所欲也。二者不可得兼，舍生而取义者也。生亦我所欲，所欲有甚于生者，故不为苟得也；死亦我所恶，所恶有甚于死者，故患有所不辟也。\n一箪食，一豆羹，得之则生，弗得则死。呼尔而与之，行道之人弗受；蹴尔而与之，乞人不屑也。万钟则不辩礼义而受之，万钟于我何加焉！为宫室之美、妻妾之奉、所识穷乏者得我与？乡为身死而不受，今为宫室之美为之；乡为身死而不受，今为妻妾之奉为之；乡为身死而不受，今为所识穷乏者得我而为之：是亦不可以已乎？此之谓失其本心。" }
+          ],
+          words: [
+            { word:"achieve", phonetic:"[əˈtʃiːv]", meaning:"v. 实现", example:"achieve success" },
+            { word:"acquire", phonetic:"[əˈkwaɪə(r)]", meaning:"v. 获得；习得", example:"acquire knowledge" },
+            { word:"admire", phonetic:"[ədˈmaɪə(r)]", meaning:"v. 钦佩；欣赏", example:"admire her courage" },
+            { word:"afford", phonetic:"[əˈfɔːd]", meaning:"v. 负担得起", example:"afford the price" },
+            { word:"ancient", phonetic:"[ˈeɪnʃənt]", meaning:"adj. 古代的", example:"ancient civilization" },
+            { word:"argue", phonetic:"[ˈɑːɡjuː]", meaning:"v. 争论", example:"argue a point" },
+            { word:"arouse", phonetic:"[əˈraʊz]", meaning:"v. 唤起；激起", example:"arouse interest" },
+            { word:"attract", phonetic:"[əˈtrækt]", meaning:"v. 吸引", example:"attract tourists" },
+            { word:"average", phonetic:"[ˈævərɪdʒ]", meaning:"adj. 平均的", example:"average score" },
+            { word:"behave", phonetic:"[bɪˈheɪv]", meaning:"v. 表现", example:"behave properly" },
+            { word:"belief", phonetic:"[bɪˈliːf]", meaning:"n. 信念；相信", example:"strong belief" },
+            { word:"belong", phonetic:"[bɪˈlɒŋ]", meaning:"v. 属于", example:"belong to us" },
+            { word:"benefit", phonetic:"[ˈbenɪfɪt]", meaning:"n./v. 益处；受益", example:"benefit from" },
+            { word:"challenge", phonetic:"[ˈtʃælɪndʒ]", meaning:"n./v. 挑战", example:"face a challenge" },
+            { word:"character", phonetic:"[ˈkærəktə(r)]", meaning:"n. 性格；人物；汉字", example:"a strong character" }
+          ]
+        },
+        '9下': {
+          poetry: [
+            { title:"渔家傲·秋思", author:"范仲淹", content:"塞下秋来风景异，衡阳雁去无留意。四面边声连角起，千嶂里，长烟落日孤城闭。\n浊酒一杯家万里，燕然未勒归无计。羌管悠悠霜满地，人不寐，将军白发征夫泪。" },
+            { title:"江城子·密州出猎", author:"苏轼", content:"老夫聊发少年狂，左牵黄，右擎苍，锦帽貂裘，千骑卷平冈。为报倾城随太守，亲射虎，看孙郎。\n酒酣胸胆尚开张。鬓微霜，又何妨！持节云中，何日遣冯唐？会挽雕弓如满月，西北望，射天狼。" },
+            { title:"破阵子·为陈同甫赋壮词以寄之", author:"辛弃疾", content:"醉里挑灯看剑，梦回吹角连营。八百里分麾下炙，五十弦翻塞外声，沙场秋点兵。\n马作的卢飞快，弓如霹雳弦惊。了却君王天下事，赢得生前身后名。可怜白发生！" },
+            { title:"满江红", author:"秋瑾", content:"小住京华，早又是中秋佳节。为篱下黄花开遍，秋容如拭。四面歌残终破楚，八年风味徒思浙。苦将侬强派作蛾眉，殊未屑！\n身不得，男儿列，心却比，男儿烈。算平生肝胆，因人常热。俗子胸襟谁识我？英雄末路当磨折。莽红尘何处觅知音？青衫湿！" },
+            { title:"十五从军征", author:"《乐府诗集》", content:"十五从军征，八十始得归。道逢乡里人：“家中有阿谁？”\n“遥看是君家，松柏冢累累。”兔从狗窦入，雉从梁上飞。中庭生旅谷，井上生旅葵。舂谷持作饭，采葵持作羹。羹饭一时熟，不知饴阿谁。出门东向看，泪落沾我衣。" },
+            { title:"白雪歌送武判官归京", author:"岑参", content:"北风卷地白草折，胡天八月即飞雪。忽如一夜春风来，千树万树梨花开。散入珠帘湿罗幕，狐裘不暖锦衾薄。将军角弓不得控，都护铁衣冷难着。瀚海阑干百丈冰，愁云惨淡万里凝。中军置酒饮归客，胡琴琵琶与羌笛。纷纷暮雪下辕门，风掣红旗冻不翻。轮台东门送君去，去时雪满天山路。山回路转不见君，雪上空留马行处。" },
+            { title:"南乡子·登京口北固亭有怀", author:"辛弃疾", content:"何处望神州？满眼风光北固楼。千古兴亡多少事？悠悠。不尽长江滚滚流。\n年少万兜鍪，坐断东南战未休。天下英雄谁敌手？曹刘。生子当如孙仲谋。" },
+            { title:"过零丁洋", author:"文天祥", content:"辛苦遭逢起一经，干戈寥落四周星。山河破碎风飘絮，身世浮沉雨打萍。惶恐滩头说惶恐，零丁洋里叹零丁。人生自古谁无死？留取丹心照汗青。" },
+            { title:"山坡羊·潼关怀古", author:"张养浩", content:"峰峦如聚，波涛如怒，山河表里潼关路。望西都，意踌躇。伤心秦汉经行处，宫阙万间都做了土。兴，百姓苦；亡，百姓苦。" },
+            { title:"相见欢", author:"李煜", content:"无言独上西楼，月如钩。寂寞梧桐深院锁清秋。剪不断，理还乱，是离愁。别是一般滋味在心头。" },
+            { title:"曹刿论战", author:"《左传》", content:"十年春，齐师伐我。公将战，曹刿请见。其乡人曰：“肉食者谋之，又何间焉？”刿曰：“肉食者鄙，未能远谋。”乃入见。问：“何以战？”公曰：“衣食所安，弗敢专也，必以分人。”对曰：“小惠未遍，民弗从也。”公曰：“牺牲玉帛，弗敢加也，必以信。”对曰：“小信未孚，神弗福也。”公曰：“小大之狱，虽不能察，必以情。”对曰：“忠之属也。可以一战。战则请从。”\n公与之乘，战于长勺。公将鼓之。刿曰：“未可。”齐人三鼓。刿曰：“可矣。”齐师败绩。公将驰之。刿曰：“未可。”下视其辙，登轼而望之，曰：“可矣。”遂逐齐师。\n既克，公问其故。对曰：“夫战，勇气也。一鼓作气，再而衰，三而竭。彼竭我盈，故克之。夫大国，难测也，惧有伏焉。吾视其辙乱，望其旗靡，故逐之。”" },
+            { title:"出师表", author:"诸葛亮", content:"先帝创业未半而中道崩殂，今天下三分，益州疲弊，此诚危急存亡之秋也。然侍卫之臣不懈于内，忠志之士忘身于外者，盖追先帝之殊遇，欲报之于陛下也。诚宜开张圣听，以光先帝遗德，恢弘志士之气，不宜妄自菲薄，引喻失义，以塞忠谏之路也。\n宫中府中，俱为一体，陟罚臧否，不宜异同。若有作奸犯科及为忠善者，宜付有司论其刑赏，以昭陛下平明之理，不宜偏私，使内外异法也。\n侍中、侍郎郭攸之、费祎、董允等，此皆良实，志虑忠纯，是以先帝简拔以遗陛下。愚以为宫中之事，事无大小，悉以咨之，然后施行，必能裨补阙漏，有所广益。\n将军向宠，性行淑均，晓畅军事，试用于昔日，先帝称之曰能，是以众议举宠为督。愚以为营中之事，悉以咨之，必能使行阵和睦，优劣得所。\n亲贤臣，远小人，此先汉所以兴隆也；亲小人，远贤臣，此后汉所以倾颓也。先帝在时，每与臣论此事，未尝不叹息痛恨于桓、灵也。侍中、尚书、长史、参军，此悉贞良死节之臣，愿陛下亲之信之，则汉室之隆，可计日而待也。\n臣本布衣，躬耕于南阳，苟全性命于乱世，不求闻达于诸侯。先帝不以臣卑鄙，猥自枉屈，三顾臣于草庐之中，咨臣以当世之事，由是感激，遂许先帝以驱驰。后值倾覆，受任于败军之际，奉命于危难之间，尔来二十有一年矣。\n先帝知臣谨慎，故临崩寄臣以大事也。受命以来，夙夜忧叹，恐托付不效，以伤先帝之明，故五月渡泸，深入不毛。今南方已定，兵甲已足，当奖率三军，北定中原，庶竭驽钝，攘除奸凶，兴复汉室，还于旧都。此臣所以报先帝而忠陛下之职分也。至于斟酌损益，进尽忠言，则攸之、祎、允之任也。\n愿陛下托臣以讨贼兴复之效；不效，则治臣之罪，以告先帝之灵。若无兴德之言，则责攸之、祎、允等之慢，以彰其咎。陛下亦宜自谋，以咨诹善道，察纳雅言，深追先帝遗诏。臣不胜受恩感激。\n今当远离，临表涕零，不知所言。" }
+          ],
+          words: [
+            { word:"achieve", phonetic:"[əˈtʃiːv]", meaning:"v. 实现", example:"achieve one's dream" },
+            { word:"acquire", phonetic:"[əˈkwaɪə(r)]", meaning:"v. 获得", example:"acquire skills" },
+            { word:"admire", phonetic:"[ədˈmaɪə(r)]", meaning:"v. 欣赏", example:"admire the view" },
+            { word:"anticipate", phonetic:"[ænˈtɪsɪpeɪt]", meaning:"v. 预期；期待", example:"anticipate problems" },
+            { word:"apparent", phonetic:"[əˈpærənt]", meaning:"adj. 明显的", example:"for no apparent reason" },
+            { word:"appointment", phonetic:"[əˈpɔɪntmənt]", meaning:"n. 约会；任命", example:"keep an appointment" },
+            { word:"approve", phonetic:"[əˈpruːv]", meaning:"v. 赞成；批准", example:"approve the plan" },
+            { word:"assess", phonetic:"[əˈses]", meaning:"v. 评估", example:"assess the risk" },
+            { word:"assume", phonetic:"[əˈsjuːm]", meaning:"v. 假定；承担", example:"assume responsibility" },
+            { word:"bargain", phonetic:"[ˈbɑːɡən]", meaning:"n. 交易；便宜货 v. 讨价", example:"a good bargain" },
+            { word:"benefit", phonetic:"[ˈbenɪfɪt]", meaning:"n./v. 益处", example:"benefit from exercise" },
+            { word:"burden", phonetic:"[ˈbɜːdn]", meaning:"n. 负担", example:"a heavy burden" },
+            { word:"calculate", phonetic:"[ˈkælkjuleɪt]", meaning:"v. 计算", example:"calculate the cost" },
+            { word:"capable", phonetic:"[ˈkeɪpəbl]", meaning:"adj. 有能力的", example:"capable of doing" },
+            { word:"circumstance", phonetic:"[ˈsɜːkəmstəns]", meaning:"n. 情况；环境", example:"under the circumstances" }
+          ]
+        }
+      }
+    };
+
     function getDefaultPoetryBank() {
       return {
         '7上': getDefaultPoetryData(),
@@ -2451,7 +2743,7 @@
 
       // 顶部 tab 计数动态联动（随当前册变化）
       const pc = document.getElementById('memPoetryCount');
-      if (pc) pc.innerText = getPoetryList(currentVolume()).length;
+      if (pc) pc.innerText = getPoetryList(currentVolume()).length + (appData.userPoetry ? appData.userPoetry.length : 0);
 
       // 当前册古诗（来自可持久化的按册背诵库）
       getPoetryList(currentVolume()).forEach(p => {
@@ -2502,8 +2794,8 @@
           card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
               <div>
-                <div class="poetry-title">${p.title} <span style="font-size:12px; background:var(--accent-orange-light); color:var(--accent-orange); padding:2px 6px; border-radius:4px;">我的</span></div>
-                <div class="poetry-author">${p.author} · ${mem ? '艾宾浩斯复习第 ' + (mem.stage + 1) + ' 轮' : '自定义篇目'}</div>
+                <div class="poetry-title">${p.title} <span style="font-size:12px; padding:2px 6px; border-radius:4px; ${p.isDefault ? 'background:var(--primary-green-light); color:var(--primary-green);' : 'background:var(--accent-orange-light); color:var(--accent-orange);'}">${p.isDefault ? '教材' : '我的'}</span></div>
+                <div class="poetry-author">${p.author} · ${mem ? '艾宾浩斯复习第 ' + (mem.stage + 1) + ' 轮' : (p.isDefault ? '教材篇目' : '自定义篇目')}</div>
               </div>
               <div>${displayReview}</div>
             </div>
@@ -2556,7 +2848,7 @@
       const container = document.getElementById('word-card-view');
       // 顶部 tab 计数动态联动（随当前册变化）
       const wc = document.getElementById('memWordCount');
-      if (wc) wc.innerText = getWordList(currentVolume()).length;
+      if (wc) wc.innerText = getWordList(currentVolume()).length + (appData.userWords ? appData.userWords.length : 0);
       const allWords = getAllWords();
       if (allWordIndex >= allWords.length) allWordIndex = 0;
       if (allWords.length === 0) {
@@ -2566,12 +2858,13 @@
 
       const w = allWords[allWordIndex];
       const mem = appData.wordMemory[w.id];
-      const isCustom = w.id.toString().startsWith('cw_');
+      const isUserItem = w.id.toString().startsWith('cw_') || w.isDefault === true;
+      const isDefaultWord = w.isDefault === true;
       const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮卡片</span>`) : `<span style="font-size:12px; color:var(--text-sub);">未开始复习</span>`;
 
       container.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <span style="font-weight:700; color:var(--primary-green);">单词翻卡 (${allWordIndex + 1} / ${allWords.length}) ${isCustom ? '<span style="font-size:12px; background:var(--accent-orange-light); color:var(--accent-orange); padding:2px 6px; border-radius:4px;">我的</span>' : ''}</span>
+          <span style="font-weight:700; color:var(--primary-green);">单词翻卡 (${allWordIndex + 1} / ${allWords.length}) ${isUserItem ? '<span style="font-size:12px; padding:2px 6px; border-radius:4px; ' + (isDefaultWord ? 'background:var(--primary-green-light); color:var(--primary-green);' : 'background:var(--accent-orange-light); color:var(--accent-orange);') + '">' + (isDefaultWord ? '教材' : '我的') + '</span>' : ''}</span>
           ${displayReview}
         </div>
         <div class="word-card-container" id="wordCard" onclick="this.classList.toggle('flipped')">
@@ -2592,7 +2885,7 @@
           <button class="btn btn-primary" onclick="handleMemoryReview('word', '${w.id}', true)">牢记 (+1级)</button>
           <button class="btn btn-accent" onclick="handleMemoryReview('word', '${w.id}', false)">忘记 (重来)</button>
           <button class="btn btn-outline" onclick="nextWord()">下一个</button>
-          ${isCustom ? `<button class="btn btn-outline btn-sm" onclick="openEditWordModal('${w.id}')">编辑</button><button class="btn btn-outline btn-sm" onclick="deleteUserWord('${w.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>` : ''}
+          ${isUserItem ? `<button class="btn btn-outline btn-sm" onclick="openEditWordModal('${w.id}')">编辑</button><button class="btn btn-outline btn-sm" onclick="deleteUserWord('${w.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>` : ''}
         </div>
       `;
     }
@@ -3568,17 +3861,154 @@
       }
     }
 
-    // 一键恢复内置教材默认库（16 篇古诗 / 24 词），不影响用户自定义内容
+    // 一键恢复内置教材默认库（统编版各册古诗文 + 课标词汇），不影响用户手动自定义内容
     function restoreDefaultLibrary() {
-      if (!confirm("恢复内置教材默认库（统编版各册古诗文 + 课标词汇）？\n现有教材库若已清空将重新载入；您自定义的古诗文/词汇不会被覆盖。")) {
+      if (!confirm("恢复内置教材默认库（统编版各册古诗文 + 课标词汇）？\n将重新载入只读教材库；您通过「按教材版本导入」载入的教材内容会被移除（不影响您手动新增的自定义古诗文/词汇）。")) {
         return;
       }
       appData.poetryBank = getDefaultPoetryBank();
       appData.wordBank = getDefaultWordBank();
+      // 移除通过版本导入写入的 isDefault 项，避免与只读教材库重复
+      if (appData.userPoetry) appData.userPoetry = appData.userPoetry.filter(p => !p.isDefault);
+      if (appData.userWords) appData.userWords = appData.userWords.filter(w => !w.isDefault);
       saveData();
       alert("✨ 教材默认库已恢复！");
       renderAll();
       closeSettingsModal();
+    }
+
+    // ========== 按教材版本导入 ==========
+    function openEditionImportModal() {
+      const sel = document.getElementById('edition-select');
+      if (sel) {
+        sel.innerHTML = '';
+        Object.keys(EDITION_PRESETS).forEach(ed => {
+          const o = document.createElement('option');
+          o.value = ed; o.textContent = ed;
+          sel.appendChild(o);
+        });
+      }
+      populateEditionVolumes();
+      document.getElementById('editionImportModal').classList.add('active');
+    }
+
+    function closeEditionImportModal() {
+      document.getElementById('editionImportModal').classList.remove('active');
+    }
+
+    function populateEditionVolumes() {
+      const sel = document.getElementById('edition-select');
+      const vsel = document.getElementById('edition-vol-select');
+      if (!sel || !vsel) return;
+      const ed = sel.value;
+      const preset = EDITION_PRESETS[ed];
+      if (!preset) return;
+      vsel.innerHTML = '';
+      const vols = Object.keys(preset);
+      const all = document.createElement('option');
+      all.value = '__all__';
+      all.textContent = '全部册（' + vols.length + ' 册）';
+      vsel.appendChild(all);
+      vols.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        vsel.appendChild(o);
+      });
+    }
+
+    // 将预设写进「我的」库（userPoetry / userWords），清空该册只读教材库避免重复
+    function handleEditionImport() {
+      const ed = document.getElementById('edition-select').value;
+      const volSel = document.getElementById('edition-vol-select').value;
+      const incPoetry = document.getElementById('edition-inc-poetry').checked;
+      const incWords = document.getElementById('edition-inc-words').checked;
+      if (!incPoetry && !incWords) { alert('请至少选择一种导入内容（古诗文或词汇）。'); return; }
+      const preset = EDITION_PRESETS[ed];
+      if (!preset) { alert('未找到该教材版本的预设数据。'); return; }
+
+      const targetVols = volSel === '__all__' ? Object.keys(preset) : [volSel];
+      if (!appData.poetryBank) appData.poetryBank = {};
+      if (!appData.wordBank) appData.wordBank = {};
+      if (!appData.userPoetry) appData.userPoetry = [];
+      if (!appData.userWords) appData.userWords = [];
+
+      let addedP = 0, addedW = 0;
+      targetVols.forEach(vol => {
+        const volData = preset[vol];
+        if (!volData) return;
+        if (incPoetry) {
+          appData.poetryBank[vol] = [];
+          appData.userPoetry = appData.userPoetry.filter(p => !(p.isDefault && p.vol === vol));
+          (volData.poetry || []).forEach((p, i) => {
+            appData.userPoetry.push({
+              id: 'eid_p_' + vol + '_' + i,
+              title: p.title, author: p.author, content: p.content,
+              vol: vol, isDefault: true
+            });
+          });
+          addedP += (volData.poetry || []).length;
+        }
+        if (incWords) {
+          appData.wordBank[vol] = [];
+          appData.userWords = appData.userWords.filter(w => !(w.isDefault && w.vol === vol));
+          (volData.words || []).forEach((w, i) => {
+            appData.userWords.push({
+              id: 'eid_w_' + vol + '_' + i,
+              word: w.word, phonetic: w.phonetic, meaning: w.meaning, example: w.example,
+              vol: vol, isDefault: true
+            });
+          });
+          addedW += (volData.words || []).length;
+        }
+      });
+
+      saveData();
+      closeEditionImportModal();
+      const parts = [];
+      if (addedP) parts.push(addedP + ' 篇古诗文');
+      if (addedW) parts.push(addedW + ' 个课标词汇');
+      alert('✅ 已导入教材库：' + (parts.join('，') || '（空）') + '。\n导入内容已写入「我的」库，可自由编辑 / 删除。');
+      renderAll();
+    }
+
+    // 粘贴 / CSV 导入：每行一条，竖线 | 分隔字段，写入当前册「我的」库
+    function importFromPaste() {
+      const type = document.getElementById('paste-type').value;
+      const raw = document.getElementById('paste-content').value.trim();
+      if (!raw) { alert('请先在文本框粘贴内容。'); return; }
+      const vol = currentVolume();
+      const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      let count = 0;
+      if (type === 'poetry') {
+        if (!appData.userPoetry) appData.userPoetry = [];
+        lines.forEach((ln, i) => {
+          const f = ln.split('|').map(s => s.trim());
+          if (f.length < 3 || !f[0] || !f[2]) return;
+          appData.userPoetry.push({
+            id: 'cp_' + Date.now() + '_' + i,
+            title: f[0], author: f[1] || '佚名', content: f[2],
+            vol: vol
+          });
+          count++;
+        });
+      } else {
+        if (!appData.userWords) appData.userWords = [];
+        lines.forEach((ln, i) => {
+          const f = ln.split('|').map(s => s.trim());
+          if (f.length < 3 || !f[0] || !f[2]) return;
+          appData.userWords.push({
+            id: 'cw_' + Date.now() + '_' + i,
+            word: f[0], phonetic: f[1] || '', meaning: f[2], example: f[3] || '',
+            vol: vol
+          });
+          count++;
+        });
+      }
+      if (count === 0) { alert('没有解析到有效条目。请确认格式为「字段 | 字段 | 字段」。'); return; }
+      saveData();
+      closeEditionImportModal();
+      alert('✅ 已从粘贴内容导入 ' + count + ' 条到当前册（' + vol + '）。');
+      renderAll();
     }
 
     // ========== 自定义古诗文 CRUD ==========
