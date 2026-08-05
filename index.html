@@ -694,11 +694,14 @@
     /* 模块 2: 古诗文与词汇记忆 */
     .memory-tab-header {
       display: flex;
+      flex-wrap: wrap;
       gap: 12px;
       margin-bottom: 16px;
       border-bottom: 2px solid var(--border-color);
       padding-bottom: 8px;
+      align-items: center;
     }
+    .mem-review-top { margin-left: auto; white-space: nowrap; }
 
     .memory-tab-btn {
       font-size: 16px;
@@ -1319,6 +1322,7 @@
             <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文背诵 (<span id="memPoetryCount">0</span>篇)</button>
             <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">英语课标词汇 (<span id="memWordCount">0</span>词卡片)</button>
             <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">通用记忆卡 (<span id="memCardCount">0</span>张)</button>
+            <button class="btn btn-primary btn-sm mem-review-top" onclick="startReview(currentMemorySubTab)">🚀 开始今日复习 (<span id="reviewCount-active">0</span>)</button>
           </div>
 
           <!-- 搜索 / 状态筛选（古诗·词汇·卡 共用） -->
@@ -1340,7 +1344,6 @@
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="btn btn-primary btn-sm" onclick="openAddPoetryModal()">+ 新增古诗文</button>
                 <button class="btn btn-outline btn-sm" onclick="togglePoetryMaskAll()">一键遮句自测</button>
-                <button class="btn btn-primary btn-sm" onclick="startReview('poetry')">🚀 开始今日复习 (<span id="reviewCount-poetry">0</span>)</button>
               </div>
             </div>
             <div id="poetry-list-container"></div>
@@ -1350,7 +1353,6 @@
           <div id="memory-sub-word" style="display:none;">
             <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <button class="btn btn-primary btn-sm" onclick="openAddWordModal()">+ 新增词汇卡片</button>
-              <button class="btn btn-primary btn-sm" onclick="startReview('word')">🚀 开始今日复习 (<span id="reviewCount-word">0</span>)</button>
             </div>
             <div id="word-card-view">
               <!-- 翻卡视图动态渲染 -->
@@ -1363,7 +1365,6 @@
               <span style="font-size:14px; color:var(--text-sub);">道法 / 历史 / 地理 / 生物等任意学科都能建卡，按 1,3,7 天三轮艾宾浩斯复习。</span>
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="btn btn-primary btn-sm" onclick="openAddCardModal()">+ 新增记忆卡</button>
-                <button class="btn btn-primary btn-sm" onclick="startReview('card')">🚀 开始今日复习 (<span id="reviewCount-card">0</span>)</button>
               </div>
             </div>
             <div id="card-view">
@@ -3498,6 +3499,7 @@ words: [
       show('memory-sub-word', sub === 'word');
       show('memory-sub-card', sub === 'card');
       if (sub === 'card') renderCardView();
+      updateReviewBadges();
     }
 
     // ---- 记忆 tab 搜索 / 状态筛选（F1）----
@@ -3838,6 +3840,8 @@ words: [
         const el = document.getElementById('reviewCount-' + t);
         if (el) el.innerText = reviewQueueSize(t);
       });
+      const activeEl = document.getElementById('reviewCount-active');
+      if (activeEl) activeEl.innerText = reviewQueueSize(currentMemorySubTab || 'poetry');
     }
 
     function startReview(type) {
