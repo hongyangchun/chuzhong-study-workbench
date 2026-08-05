@@ -850,6 +850,16 @@
       line-height: 1.7;
     }
 
+    /* F3 今日复习队列（专注复习浮层） */
+    #review-overlay {
+      position: fixed; inset: 0; z-index: 9000;
+      background: #f4f7f5; overflow-y: auto; padding: 20px;
+      display: none;
+    }
+    #review-overlay .review-wrap { max-width: 640px; margin: 0 auto; }
+    .review-progress-bar { height: 8px; border-radius: 4px; background: var(--border-color); overflow: hidden; margin: 12px 0 6px; }
+    .review-progress-fill { height: 100%; background: var(--primary-green); transition: width .25s; }
+
     /* 模块 3: 错题本 */
     .error-card {
       background: var(--bg-card);
@@ -1291,6 +1301,7 @@
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="btn btn-primary btn-sm" onclick="openAddPoetryModal()">+ 新增古诗文</button>
                 <button class="btn btn-outline btn-sm" onclick="togglePoetryMaskAll()">一键遮句自测</button>
+                <button class="btn btn-primary btn-sm" onclick="startReview('poetry')">🚀 开始今日复习 (<span id="reviewCount-poetry">0</span>)</button>
               </div>
             </div>
             <div id="poetry-list-container"></div>
@@ -1298,8 +1309,9 @@
 
           <!-- 单词卡片区 -->
           <div id="memory-sub-word" style="display:none;">
-            <div style="margin-bottom:12px; text-align:right;">
+            <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <button class="btn btn-primary btn-sm" onclick="openAddWordModal()">+ 新增词汇卡片</button>
+              <button class="btn btn-primary btn-sm" onclick="startReview('word')">🚀 开始今日复习 (<span id="reviewCount-word">0</span>)</button>
             </div>
             <div id="word-card-view">
               <!-- 翻卡视图动态渲染 -->
@@ -1310,7 +1322,10 @@
           <div id="memory-sub-card" style="display:none;">
             <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
               <span style="font-size:14px; color:var(--text-sub);">道法 / 历史 / 地理 / 生物等任意学科都能建卡，按 1,3,7 天三轮艾宾浩斯复习。</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddCardModal()">+ 新增记忆卡</button>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="openAddCardModal()">+ 新增记忆卡</button>
+                <button class="btn btn-primary btn-sm" onclick="startReview('card')">🚀 开始今日复习 (<span id="reviewCount-card">0</span>)</button>
+              </div>
             </div>
             <div id="card-view">
               <!-- 通用记忆卡翻卡视图动态渲染 -->
@@ -3402,6 +3417,7 @@ words: [
       const total = filteredPoetry().length + filteredWords().length + filteredCards().length;
       const el = document.getElementById('memResultCount');
       if (el) el.innerText = (memSearch || memFilter !== 'all') ? `匹配 ${total} 条` : '';
+      updateReviewBadges();
     }
 
     // 古诗词背诵渲染
@@ -3679,6 +3695,136 @@ words: [
       saveData();
       if (type === 'word') nextWord();
       else if (type === 'card') renderCardView();
+    }
+
+    // ---- F3: 今日复习队列（只练「到期 + 待开始前 N 条」，避免一次翻几百张）----
+    const REVIEW_NEW_BATCH = 10; // 每轮新学（待开始）最多带几张
+    let reviewMode = { active: false, type: null, list: [], index: 0 };
+
+    function buildReviewQueue(getAll, getMem) {
+      const today = getTodayDateStr();
+      const all = getAll();
+      const due = all.filter(x => { const m = getMem(x); return m && !m.graduated && m.nextReview <= today; });
+      const pending = all.filter(x => !getMem(x)).slice(0, REVIEW_NEW_BATCH);
+      return due.concat(pending);
+    }
+
+    function reviewQueueSize(type) {
+      let getAll, getMem;
+      if (type === 'word') { getAll = getAllWords; getMem = w => appData.wordMemory && appData.wordMemory[w.id]; }
+      else if (type === 'card') { getAll = getAllCards; getMem = c => appData.cardMemory && appData.cardMemory[c.id]; }
+      else { getAll = visiblePoetry; getMem = p => appData.poetryMemory && appData.poetryMemory[p.id]; }
+      return buildReviewQueue(getAll, getMem).length;
+    }
+
+    function updateReviewBadges() {
+      ['poetry', 'word', 'card'].forEach(t => {
+        const el = document.getElementById('reviewCount-' + t);
+        if (el) el.innerText = reviewQueueSize(t);
+      });
+    }
+
+    function startReview(type) {
+      let getAll, getMem, label;
+      if (type === 'word') { getAll = getAllWords; getMem = w => appData.wordMemory && appData.wordMemory[w.id]; label = '英语课标词汇'; }
+      else if (type === 'card') { getAll = getAllCards; getMem = c => appData.cardMemory && appData.cardMemory[c.id]; label = '通用记忆卡'; }
+      else { getAll = visiblePoetry; getMem = p => appData.poetryMemory && appData.poetryMemory[p.id]; label = '古诗文背诵'; }
+      const queue = buildReviewQueue(getAll, getMem);
+      if (queue.length === 0) {
+        alert('🎉 当前册（' + currentVolume() + '）的「' + label + '」暂时没有「复习到期」的内容，也还没有「待开始」的卡片。\n先去导入或新增几张再回来复习吧！');
+        return;
+      }
+      reviewMode = { active: true, type, list: queue, index: 0 };
+      const ov = document.getElementById('review-overlay');
+      ov.style.display = 'block';
+      document.body.style.overflow = 'hidden';
+      renderReviewQueue();
+    }
+
+    function reviewPromptText(type) {
+      if (type === 'word') return '点击卡片翻面看释义例句，先凭记忆想一下意思';
+      if (type === 'card') return '点击卡片翻面看答案，先凭记忆想一下';
+      return '凭记忆背诵，点击翻面看全文';
+    }
+
+    function renderReviewQueue() {
+      const ov = document.getElementById('review-overlay');
+      if (!reviewMode.active) return;
+      const item = reviewMode.list[reviewMode.index];
+      if (!item) { renderReviewDone(); return; }
+      const type = reviewMode.type;
+      const total = reviewMode.list.length;
+      const pos = reviewMode.index + 1;
+      const pct = Math.round((reviewMode.index / total) * 100);
+      let cardHtml = '';
+      if (type === 'word') {
+        const w = item;
+        cardHtml = '<div class="word-card-container" id="reviewCard" onclick="this.classList.toggle(\'flipped\')">'
+          + '<div class="word-card-inner">'
+          + '<div class="word-card-front"><div class="word-spelling">' + w.word + '</div><div class="word-phonetic">' + (w.phonetic || '') + '</div><div style="margin-top:20px; font-size:13px; color:var(--text-sub);">👆 点击翻面看释义例句</div></div>'
+          + '<div class="word-card-back"><div class="word-meaning">' + w.meaning + '</div><div class="word-example">' + (w.example || '') + '</div></div>'
+          + '</div></div>';
+      } else if (type === 'card') {
+        const c = item;
+        const backHtml = (c.back || '').split('\n').map(l => '<div>' + l + '</div>').join('');
+        cardHtml = '<div class="word-card-container" id="reviewCard" onclick="this.classList.toggle(\'flipped\')">'
+          + '<div class="word-card-inner">'
+          + '<div class="word-card-front gen-card-front"><div class="word-spelling">' + c.front + '</div><div style="margin-top:18px; font-size:13px; color:var(--text-sub);">👆 点击翻面看答案 / 提示</div></div>'
+          + '<div class="word-card-back gen-card-back"><div class="word-meaning">' + backHtml + '</div></div>'
+          + '</div></div>';
+      } else {
+        const p = item;
+        const lines = (p.content || '').split('\n').map(l => '<div class="poetry-line" style="cursor:default;">' + l + '</div>').join('');
+        cardHtml = '<div class="word-card-container" id="reviewCard" onclick="this.classList.toggle(\'flipped\')">'
+          + '<div class="word-card-inner">'
+          + '<div class="word-card-front" style="justify-content:center;"><div class="word-spelling" style="font-size:26px;">' + p.title + '</div><div class="word-phonetic">' + p.author + '</div><div style="margin-top:18px; font-size:13px; color:var(--text-sub);">👆 点击翻面看全文，先凭记忆背一遍</div></div>'
+          + '<div class="word-card-back" style="justify-content:flex-start; align-items:flex-start; text-align:left; overflow-y:auto;"><div style="font-size:18px; font-weight:700; margin-bottom:10px;">' + p.title + ' · ' + p.author + '</div><div style="font-size:17px; line-height:2;">' + lines + '</div></div>'
+          + '</div></div>';
+      }
+      const typeLabel = { word: '英语课标词汇', card: '通用记忆卡', poetry: '古诗文背诵' }[type];
+      ov.querySelector('#review-body').innerHTML =
+        '<div class="review-wrap">'
+        + '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">'
+        + '<span style="font-weight:700; color:var(--primary-green); font-size:16px;">🚀 今日复习 · ' + typeLabel + '</span>'
+        + '<button class="btn btn-outline btn-sm" onclick="exitReview()">✕ 退出</button>'
+        + '</div>'
+        + '<div class="review-progress-bar"><div class="review-progress-fill" style="width:' + pct + '%;"></div></div>'
+        + '<div style="font-size:13px; color:var(--text-sub); margin-bottom:6px;">进度 ' + pos + ' / ' + total + ' · ' + reviewPromptText(type) + '</div>'
+        + cardHtml
+        + '<div style="display:flex; gap:12px; flex-wrap:wrap;">'
+        + '<button class="btn btn-accent" style="flex:1; min-width:120px;" onclick="reviewAct(false)">😵 忘记了</button>'
+        + '<button class="btn btn-primary" style="flex:1; min-width:120px;" onclick="reviewAct(true)">✅ 记住啦 (+1级)</button>'
+        + '</div>'
+        + '</div>';
+    }
+
+    function reviewAct(isRemembered) {
+      const item = reviewMode.list[reviewMode.index];
+      if (!item) return;
+      handleMemoryReview(reviewMode.type, item.id, isRemembered);
+      reviewMode.index += 1;
+      if (reviewMode.index >= reviewMode.list.length) renderReviewDone();
+      else renderReviewQueue();
+    }
+
+    function renderReviewDone() {
+      const ov = document.getElementById('review-overlay');
+      const done = reviewMode.list.length;
+      ov.querySelector('#review-body').innerHTML =
+        '<div class="review-wrap" style="text-align:center; padding-top:60px;">'
+        + '<div style="font-size:54px;">🎉</div>'
+        + '<div style="font-size:22px; font-weight:800; color:var(--primary-green); margin:14px 0 6px;">今日复习完成！</div>'
+        + '<div style="color:var(--text-sub);">本轮共复习 <b>' + done + '</b> 张，坚持就是胜利～</div>'
+        + '<div style="margin-top:24px;"><button class="btn btn-primary" onclick="exitReview()">返回背诵库</button></div>'
+        + '</div>';
+    }
+
+    function exitReview() {
+      reviewMode = { active: false, type: null, list: [], index: 0 };
+      const ov = document.getElementById('review-overlay');
+      ov.style.display = 'none';
+      document.body.style.overflow = '';
+      renderMemoryLists();
     }
 
     // ------------------------------------------------------------------
@@ -4926,6 +5072,11 @@ words: [
   <!-- 题目截图大图查看 -->
   <div id="imgLightbox" onclick="this.classList.remove('active')">
     <img id="imgLightboxImg" onclick="event.stopPropagation()" alt="题目截图">
+  </div>
+
+  <!-- F3: 今日复习队列浮层 -->
+  <div id="review-overlay">
+    <div id="review-body"></div>
   </div>
 
 </body>
