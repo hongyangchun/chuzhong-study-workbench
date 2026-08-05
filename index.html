@@ -1333,6 +1333,7 @@
           <div class="mem-filter-bar" style="margin:14px 0 4px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <input id="memSearchInput" type="search" placeholder="搜索（词 / 释义 / 作者 / 内容…）" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:16px;" oninput="onMemSearch(this.value)">
             <select id="memFilterSelect" class="form-control" style="max-width:150px;" onchange="onMemFilter(this.value)">
+              <option value="focus" selected>今日优先</option>
               <option value="all">全部</option>
               <option value="due">复习到期</option>
               <option value="start">未开始 / 已排期</option>
@@ -3510,10 +3511,17 @@ words: [
 
     // ---- 记忆 tab 搜索 / 状态筛选（F1）----
     let memSearch = '';
-    let memFilter = 'all';
+    let memFilter = 'focus';
     function onMemSearch(v){ memSearch = (v || '').trim().toLowerCase(); renderMemoryLists(); }
     function onMemFilter(v){ memFilter = v || 'all'; renderMemoryLists(); }
+    const FOCUS_LIMIT = 30;
     function filterByStatus(arr, getMem){
+      if (memFilter === 'focus') {
+        const today = getTodayDateStr();
+        const due = arr.filter(x => { const m = getMem(x); return m && !m.graduated && m.nextReview <= today; });
+        const start = arr.filter(x => !getMem(x) && isAvailableToday(x));
+        return due.concat(start).slice(0, FOCUS_LIMIT);
+      }
       if (memFilter === 'start') return arr.filter(x => !getMem(x));
       if (memFilter === 'due') return arr.filter(x => { const m = getMem(x); return m && !m.graduated && m.nextReview <= getTodayDateStr(); });
       if (memFilter === 'done') return arr.filter(x => { const m = getMem(x); return m && m.graduated; });
@@ -3523,6 +3531,10 @@ words: [
       if (!memSearch) return arr;
       return arr.filter(x => getText(x).toLowerCase().includes(memSearch));
     }
+    function subLibAllCount(getAll, getText){
+      return filterByText(getAll(), getText).length;
+    }
+    function expandAll(){ onMemFilter('all'); }
     function filteredPoetry(){
       return filterByText(filterByStatus(visiblePoetry(), p => appData.poetryMemory && appData.poetryMemory[p.id]),
         p => (p.title + ' ' + p.author + ' ' + p.content));
@@ -3539,7 +3551,7 @@ words: [
       renderPoetryList(); renderWordView(); renderCardView();
       const total = filteredPoetry().length + filteredWords().length + filteredCards().length;
       const el = document.getElementById('memResultCount');
-      if (el) el.innerText = (memSearch || memFilter !== 'all') ? `匹配 ${total} 条` : '';
+      if (el) el.innerText = memFilter === 'focus' ? `今日优先 · 共 ${total} 条` : (memSearch || memFilter !== 'all') ? `匹配 ${total} 条` : '';
       updateReviewBadges();
       renderMemOverview();
     }
@@ -3588,15 +3600,31 @@ words: [
           `;
           container.appendChild(card);
         });
+        if (memFilter === 'focus') {
+          const totalAll = subLibAllCount(visiblePoetry, p => (p.title + ' ' + p.author + ' ' + p.content));
+          if (totalAll > list.length) {
+            const f = document.createElement('div');
+            f.style.textAlign = 'center';
+            f.style.padding = '14px';
+            f.innerHTML = '<button class="btn btn-outline btn-sm" onclick="expandAll()">展开全部 ' + totalAll + ' 条 ▾</button>';
+            container.appendChild(f);
+          }
+        }
       } else {
         const hasAny = visiblePoetry().length > 0;
-        container.innerHTML = hasAny
-          ? '<div style="text-align:center; padding:34px 16px; color:var(--text-sub);">没有匹配的古诗文，换个关键词或筛选条件试试～</div>'
-          : '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
-            + '当前册（' + currentVolume() + '）还没有古诗文背诵卡。<br>可一键载入统编版教材，或点上方「+ 新增古诗文」手动添加。'
-            + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
-            + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
-            + '</div>';
+        if (memFilter === 'focus' && hasAny) {
+          const totalAll = subLibAllCount(visiblePoetry, p => (p.title + ' ' + p.author + ' ' + p.content));
+          container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">今日没有到期或待开始的古诗文 🎉<br>'
+            + '<div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="expandAll()">查看全部 ' + totalAll + ' 条</button></div></div>';
+        } else {
+          container.innerHTML = hasAny
+            ? '<div style="text-align:center; padding:34px 16px; color:var(--text-sub);">没有匹配的古诗文，换个关键词或筛选条件试试～</div>'
+            : '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
+              + '当前册（' + currentVolume() + '）还没有古诗文背诵卡。<br>可一键载入统编版教材，或点上方「+ 新增古诗文」手动添加。'
+              + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
+              + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
+              + '</div>';
+        }
       }
     }
 
@@ -3637,9 +3665,19 @@ words: [
       const wc = document.getElementById('memWordCount');
       if (wc) wc.innerText = getAllWords().length;
       const allWords = filteredWords();
+      let wordFooter = '';
+      if (memFilter === 'focus') {
+        const totalAll = subLibAllCount(getAllWords, w => (w.word + ' ' + w.phonetic + ' ' + w.meaning + ' ' + w.example));
+        if (totalAll > allWords.length) wordFooter = '<div style="text-align:center; margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="expandAll()">展开全部 ' + totalAll + ' 条 ▾</button></div>';
+      }
       if (allWordIndex >= allWords.length) allWordIndex = 0;
       if (allWords.length === 0) {
         const hasAny = getAllWords().length > 0;
+        if (memFilter === 'focus' && hasAny) {
+          const totalAll = subLibAllCount(getAllWords, w => (w.word + ' ' + w.phonetic + ' ' + w.meaning + ' ' + w.example));
+          container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">今日没有到期或待开始的单词 🎉<br>' + '<div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="expandAll()">查看全部 ' + totalAll + ' 条</button></div></div>';
+          return;
+        }
         container.innerHTML = hasAny
           ? '<div style="text-align:center; padding:34px 16px; color:var(--text-sub);">没有匹配的单词，换个关键词或筛选条件试试～</div>'
           : '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
@@ -3682,6 +3720,7 @@ words: [
           ${isUserItem ? `<button class="btn btn-outline btn-sm" onclick="openEditWordModal('${w.id}')">编辑</button><button class="btn btn-outline btn-sm" onclick="deleteUserWord('${w.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>` : ''}
         </div>
       `;
+      if (wordFooter) container.insertAdjacentHTML('beforeend', wordFooter);
     }
 
     function prevWord() {
@@ -3710,8 +3749,18 @@ words: [
       if (cc) cc.innerText = getAllCards().length;
 
       const allCards = filteredCards();
+      let cardFooter = '';
+      if (memFilter === 'focus') {
+        const totalAll = subLibAllCount(getAllCards, c => (c.front + ' ' + (c.back || '') + ' ' + (c.subject || '')));
+        if (totalAll > allCards.length) cardFooter = '<div style="text-align:center; margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="expandAll()">展开全部 ' + totalAll + ' 条 ▾</button></div>';
+      }
       if (allCards.length === 0) {
         const hasAny = getAllCards().length > 0;
+        if (memFilter === 'focus' && hasAny) {
+          const totalAll = subLibAllCount(getAllCards, c => (c.front + ' ' + (c.back || '') + ' ' + (c.subject || '')));
+          container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">今日没有到期或待开始的卡片 🎉<br>' + '<div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="expandAll()">查看全部 ' + totalAll + ' 条</button></div></div>';
+          return;
+        }
         container.innerHTML = hasAny
           ? '<div style="text-align:center; padding:34px 16px; color:var(--text-sub);">没有匹配的卡片，换个关键词或筛选条件试试～</div>'
           : `<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">当前册还没有通用记忆卡。<br>点击右上角「+ 新增记忆卡」，把道法 / 历史 / 地理 / 生物等重点知识做成卡片吧！</div>`;
@@ -3752,6 +3801,7 @@ words: [
           <button class="btn btn-outline btn-sm" onclick="deleteUserCard('${card.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>
         </div>
       `;
+      if (cardFooter) container.insertAdjacentHTML('beforeend', cardFooter);
     }
 
     function prevCard() {
