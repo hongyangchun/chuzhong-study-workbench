@@ -369,3 +369,33 @@ F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ 
 
 ## 进度
 记忆 tab = 浏览（管理）/ 复习（专注流）两种心智彻底分离，单一复习入口 = 模式切换钮。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
+
+---
+
+# 记忆 tab：默认 = 复习视角（浏览收为次级）
+
+## 背景
+上一步「浏览/复习双模式」(`f41dcbc`) 把复习做成了与浏览平起平坐的分段切换器。用户实测后指出两点正确问题：
+1. 「复习」本是**动作**（点开全屏浮层去背），被压成切换器一段后，存在感还不如原来的绿色主按钮「🚀 开始今日复习」——视觉上反而退步了。
+2. 一个动作、一个视图硬塞进对等控件，是**结构性错配**，调样式救不了。用户判断：默认应该是复习视角，浏览才是次级视图。
+
+## 改动（commit `21f778d`，已 push，Cloudflare 上线）
+- `memMode` 默认改 `review`；切换器顺序调为「**复习**(active 主绿) / 浏览(outline 次级)」，复习钮内仍带实时条数 `reviewCount-active`。
+- 默认视图 = `renderReviewBoard()` 渲染的「今日复习清单」卡：
+  - 头部：标题「今日复习 · <子库名>」+ 副标题「共 N 条待背（到期复习 + 今日可学）」
+  - 大号绿色 **🚀 开始今日复习 (N)** 按钮（`review-start-btn`，min-height 48px ≥ 44px，队列为空时禁用）
+  - 清单行：序号绿圆点 + 标题 + 轮次/排期 meta + 「到期复习」(红) / 「今日可学」(绿) 标签
+  - 空态：虚线卡引导「去浏览添加或导入」
+- **修两处真 bug**：
+  - `setMemMode('review')` 原会**自动弹全屏浮层**（一进复习态就 startReview）→ 改为只显示清单，点「开始」按钮才进专注流。
+  - `switchTab('memory')` 原**不渲染**记忆 tab（只切显隐+标题，切到记忆 tab 看板空白）→ 加 `if (tabName==='memory') renderMemoryLists()`，进入即渲染默认复习看板。
+- `exitReview()` 关闭浮层后回退 `memMode = memModeBeforeReview`（默认 review）→ 回到复习看板，不再误跳浏览态。
+- 补齐复习看板全套 CSS（看板头/标题/副标题/开始钮/清单/行/序号/标签/空态），移动端 flex-wrap 自动换行、按钮 ≥44px。
+
+## 验证
+- 内联脚本 `node --check` 通过（208830 字符）
+- grep：`startReview(` 仅剩 定义(4071) + 看板按钮(3709) 两处（自动弹浮层已彻底移除）；review board 11 个 CSS 类全部 ≥1；`let memMode`=review、`memModeBeforeReview`=review、`switchTab-mem-render`=1
+- 线上 curl 经 `sleep 45` 多轮稳定：`review-board-head=2 / memModeBeforeReview=2 / switchTab-mem-render=1`
+
+## 进度
+记忆 tab 现在：**进 tab 先见「今日复习清单 + 大号开始钮」**（复习最显眼，契合孩子每天主要就是复习的真实用法）；右上「浏览」是次级维护入口（增删改 / 搜索筛选）。「按钮 vs 视图」错位彻底消除。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
