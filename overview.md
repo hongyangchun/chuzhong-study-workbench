@@ -301,3 +301,25 @@ F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ 
 
 ## 进度
 F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ · 记忆 tab 第二刀(默认聚焦视图) ✅ · 三按钮合并 ✅。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
+
+---
+
+# 记忆 tab 按钮位置调整（导航与操作分离）
+
+## 背景
+用户反馈「开始今日复习」和「＋新增」两个按钮位置怪。原布局（commit `44d28a1`）把两个 CTA 塞在子 tab 导航行最右端（`margin-left:auto`），导致：与子 tab 间留一大段空白、导航与操作混在同一行、视觉上像浮在角落的孤儿按钮。
+
+## 改动（commit `f117d32`，已 push，Cloudflare 上线）
+- 子 tab 行（古诗文 / 词汇 / 记忆卡）改为**纯导航**，去掉行内两个 CTA。
+- 新增 `.mem-toolbar` 工具栏行：
+  - 左侧：搜索框 + 状态筛选 + 结果计数（原 `.mem-filter-bar` 移入）
+  - 右侧 `.mem-actions`：`＋ 新增`（次，outline）→ `🚀 开始今日复习`（主，绿色 primary，置右强调）
+- 删除旧 `.mem-review-top { margin-left:auto }`；新增 `.mem-toolbar / .mem-filter-bar / .mem-actions`（均为 flex-wrap，移动端自动换行、按钮靠右）。
+
+## 验证
+- 内联脚本 `node --check` 通过
+- grep：`mem-review-top` = 0、`mem-toolbar` 上线、`openAddCurrent` = 2
+- 线上 curl 经边缘缓存传播（约 45s 延迟）后稳定：`mem-toolbar=2 / mem-review-top=0 / openAddCurrent=2`
+
+## 进度
+记忆 tab 学习交互收敛为「单一入口 + 三档自评 + 工具栏分离」的清爽结构。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
