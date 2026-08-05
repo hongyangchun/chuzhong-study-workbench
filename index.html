@@ -708,13 +708,6 @@
       margin-top: 14px;
       flex-wrap: wrap;
     }
-    .mem-sublib-label {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-sub, #6b7280);
-      letter-spacing: .04em;
-      flex: 0 0 auto;
-    }
     .mem-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -786,6 +779,12 @@
     }
     .review-board-title { font-size: 18px; font-weight: 800; color: var(--text-main, #1f2937); }
     .review-board-sub { font-size: 12px; color: var(--text-sub, #6b7280); margin-top: 2px; }
+    .review-board-head-main { flex: 1 1 auto; min-width: 0; }
+    .review-stats { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
+    .review-stat { font-size: 13px; color: var(--text-sub, #6b7280); }
+    .review-stat b { font-size: 16px; color: var(--text-main, #1f2937); margin-right: 3px; font-weight: 800; }
+    .review-crosslib { margin-top: 8px; font-size: 12px; color: var(--text-sub, #6b7280); line-height: 1.5; }
+    .review-crosslib b { color: var(--primary-green, #16a34a); }
     .review-start-btn {
       min-height: 48px;
       padding: 12px 22px;
@@ -866,12 +865,6 @@
       border-radius: 2px;
     }
 
-    /* 记忆总览条：替代原静态艾宾浩斯曲线卡（数据驱动） */
-    .mem-overview { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-    .mem-chip { flex: 1; min-width: 108px; background: var(--bg-paper); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 10px; text-align: center; transition: transform .15s, box-shadow .15s; }
-    .mem-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
-    .mem-chip-val { font-size: 22px; font-weight: 800; line-height: 1.1; }
-    .mem-chip-label { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
     .mem-principle { margin: 2px 0 6px; font-size: 13px; color: var(--text-sub); }
     .mem-principle summary { cursor: pointer; font-weight: 700; color: var(--primary-green); padding: 6px 0; list-style: none; }
     .mem-principle summary::-webkit-details-marker { display: none; }
@@ -1440,13 +1433,11 @@
       <!-- TAB 3: 古诗文与词汇背诵 -->
       <div id="tab-memory" class="tab-page" style="display:none;">
         <div class="card">
-          <!-- 记忆总览条：数据驱动概览，点芯片跳对应子库+筛选（替代原静态曲线卡） -->
-          <div class="mem-overview" id="mem-overview"></div>
           <!-- 顶层视图切换：复习（默认）/ 浏览 —— 位于子库选择之上 -->
           <div class="mem-toolbar">
             <div class="mem-mode-toggle">
               <button class="mem-mode-btn active" id="modeReview" onclick="setMemMode('review')">复习 <span id="reviewCount-active">0</span></button>
-              <button class="mem-mode-btn" id="modeBrowse" onclick="setMemMode('browse')">浏览</button>
+              <button class="mem-mode-btn" id="modeBrowse" onclick="setMemMode('browse')">管理</button>
             </div>
             <div class="mem-filter-bar" id="mem-filter-bar">
               <input id="memSearchInput" type="search" placeholder="搜索（词 / 释义 / 作者 / 内容…）" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:16px;" oninput="onMemSearch(this.value)">
@@ -1466,7 +1457,6 @@
 
           <!-- 子库选择：古诗文 / 词汇 / 记忆卡（次级，位于视图切换之下） -->
           <div class="mem-sublib-row">
-            <span class="mem-sublib-label">子库</span>
             <div class="memory-tab-header">
               <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文</button>
               <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">词汇</button>
@@ -3025,7 +3015,6 @@ words: [
       renderPoetryList();
       renderWordView();
       renderCardView();
-      renderMemOverview();
       renderErrorList();
       updateBadges();
     }
@@ -3089,57 +3078,6 @@ words: [
         <text x="${xFor(0) + 4}" y="${yFor(R(0)) - 8}" font-size="10" fill="#E87A5D">记忆留存率</text>
         ${markers}
       </svg>`;
-    }
-
-    // 记忆总览条（优化迭代）：数据驱动概览，替代原静态艾宾浩斯曲线卡
-    function renderMemOverview() {
-      const el = document.getElementById('mem-overview');
-      if (!el) return;
-      const today = getTodayDateStr();
-      let due = 0, grad = 0, total = 0;
-      const tally = (item, mem) => {
-        total++;
-        if (mem && !mem.graduated && mem.nextReview <= today) due++;
-        if (mem && mem.graduated) grad++;
-      };
-      visiblePoetry().forEach(p => tally(p, appData.poetryMemory && appData.poetryMemory[p.id]));
-      visibleWords().forEach(w => tally(w, appData.wordMemory && appData.wordMemory[w.id]));
-      getAllCards().forEach(c => tally(c, appData.cardMemory && appData.cardMemory[c.id]));
-      const streak = (appData.user && appData.user.streakDays) || 0;
-      const chips = [
-        { label: '今日待复习', value: due, cls: 'c-orange', act: 'due' },
-        { label: '已毕业', value: grad, cls: 'c-status', act: 'done' },
-        { label: '连续复习', value: streak + ' 天', cls: 'c-green', act: '' },
-        { label: '在库', value: total + ' 条', cls: '', act: 'all' }
-      ];
-      el.innerHTML = chips.map(c => {
-        const click = c.act ? ` onclick="gotoMemFilter('${c.act}')"` : '';
-        const cur = c.act ? ' cursor:pointer;' : '';
-        return `<div class="mem-chip" style="${cur}"${click}>
-          <div class="mem-chip-val ${c.cls}">${c.value}</div>
-          <div class="mem-chip-label">${c.label}</div>
-        </div>`;
-      }).join('');
-    }
-
-    // 点总览芯片：跳到该筛选下最有内容的子库，并应用筛选
-    function gotoMemFilter(act) {
-      const getAll = t => t === 'word' ? getAllWords() : t === 'card' ? getAllCards() : visiblePoetry();
-      const getMem = t => t === 'word' ? (w => appData.wordMemory && appData.wordMemory[w.id])
-                         : t === 'card' ? (c => appData.cardMemory && appData.cardMemory[c.id])
-                         : (p => appData.poetryMemory && appData.poetryMemory[p.id]);
-      const match = (t, fn) => getAll(t).filter(x => fn(getMem(t)(x))).length;
-      let sub = 'poetry';
-      if (act === 'due' || act === 'done') {
-        const pred = act === 'due'
-          ? (m => m && !m.graduated && m.nextReview <= getTodayDateStr())
-          : (m => m && m.graduated);
-        if (match('poetry', pred) > 0) sub = 'poetry';
-        else if (match('word', pred) > 0) sub = 'word';
-        else if (match('card', pred) > 0) sub = 'card';
-      }
-      switchMemorySubTab(sub);
-      onMemFilter(act);
     }
 
     // 更新红点 Badge
@@ -3613,6 +3551,7 @@ words: [
     // ------------------------------------------------------------------
     function switchMemorySubTab(sub, btnEl) {
       currentMemorySubTab = sub;
+      try { localStorage.setItem('mem_last_sublib', sub); } catch(e){}
       document.querySelectorAll('.memory-tab-btn').forEach(b => b.classList.remove('active'));
       if (btnEl) btnEl.classList.add('active');
       applyMemModeVisibility();
@@ -3704,10 +3643,9 @@ words: [
         if (el) el.innerText = memFilter === 'focus' ? `今日优先 · 共 ${total} 条` : (memSearch || memFilter !== 'all') ? `匹配 ${total} 条` : '';
       }
       updateReviewBadges();
-      renderMemOverview();
     }
 
-    // 复习视角（默认视图）：今日复习清单 + 开始按钮
+    // 复习视角（默认视图）：今日复习清单 + 开始按钮 + 跨库统计
     function renderReviewBoard() {
       const board = document.getElementById('mem-review-board');
       if (!board) return;
@@ -3719,16 +3657,26 @@ words: [
       const queue = buildReviewQueue(getAll, getMem);
       const n = queue.length;
       const today = getTodayDateStr();
+      const st = getMemStats();
 
       let html = '';
       html += '<div class="review-board-head">';
-      html += '  <div><div class="review-board-title">今日复习 · ' + label + '</div>';
-      html += '  <div class="review-board-sub">共 ' + n + ' 条待背' + (n > 0 ? '（到期复习 + 今日可学）' : '') + '</div></div>';
+      html += '  <div class="review-board-head-main">';
+      html += '    <div class="review-board-title">今日复习 · ' + label + '</div>';
+      html += '    <div class="review-board-sub">当前库共 ' + n + ' 条待背（到期复习 + 今日可学）</div>';
+      html += '    <div class="review-stats">';
+      html += '      <span class="review-stat"><b>' + st.due + '</b> 待复习</span>';
+      html += '      <span class="review-stat"><b>' + st.grad + '</b> 已毕业</span>';
+      html += '      <span class="review-stat"><b>' + st.streak + '</b> 天连击</span>';
+      html += '      <span class="review-stat"><b>' + st.total + '</b> 在库</span>';
+      html += '    </div>';
+      html += '    <div class="review-crosslib">三库今日共 <b>' + st.readyTotal + '</b> 条可复习 · 古诗文 ' + st.ready.poetry + ' / 词汇 ' + st.ready.word + ' / 记忆卡 ' + st.ready.card + '</div>';
+      html += '  </div>';
       html += '  <button class="btn btn-primary review-start-btn" onclick="startReview(\'' + currentMemorySubTab + '\')"' + (n === 0 ? ' disabled style="opacity:.5;cursor:not-allowed;"' : '') + '>🚀 开始今日复习 (' + n + ')</button>';
       html += '</div>';
 
       if (n === 0) {
-        html += '<div class="review-empty">🎉 当前册（' + currentVolume() + '）的「' + label + '」今天没有要复习的。<br>去「浏览」添加或导入条目吧！<button class="btn btn-outline btn-sm" onclick="setMemMode(\'browse\')" style="margin-top:12px;">浏览全部库</button></div>';
+        html += '<div class="review-empty">🎉 当前册（' + currentVolume() + '）的「' + label + '」今天没有要复习的。<br>去「管理」添加或导入条目吧！<button class="btn btn-outline btn-sm" onclick="setMemMode(\'browse\')" style="margin-top:12px;">管理全部库</button></div>';
       } else {
         html += '<div class="review-list">';
         queue.forEach((item, i) => {
@@ -3750,6 +3698,34 @@ words: [
         html += '</div>';
       }
       board.innerHTML = html;
+    }
+
+    // 跨库记忆统计：待复习/已毕业/在库（三库汇总）+ 三库各自今日可复习数，供复习看板头部展示
+    function getMemStats() {
+      const today = getTodayDateStr();
+      const calc = (arr, memOf) => arr.reduce((a, x) => {
+        const m = memOf(x);
+        if (m && !m.graduated && m.nextReview <= today) a.due++;
+        if (m && m.graduated) a.grad++;
+        return a;
+      }, { due: 0, grad: 0 });
+      const P = calc(visiblePoetry(), p => appData.poetryMemory && appData.poetryMemory[p.id]);
+      const W = calc(getAllWords(), w => appData.wordMemory && appData.wordMemory[w.id]);
+      const C = calc(getAllCards(), c => appData.cardMemory && appData.cardMemory[c.id]);
+      const ready = {
+        poetry: buildReviewQueue(visiblePoetry, p => appData.poetryMemory && appData.poetryMemory[p.id]).length,
+        word: buildReviewQueue(getAllWords, w => appData.wordMemory && appData.wordMemory[w.id]).length,
+        card: buildReviewQueue(getAllCards, c => appData.cardMemory && appData.cardMemory[c.id]).length
+      };
+      return {
+        poetry: P, word: W, card: C,
+        due: P.due + W.due + C.due,
+        grad: P.grad + W.grad + C.grad,
+        total: visiblePoetry().length + getAllWords().length + getAllCards().length,
+        streak: (appData.user && appData.user.streakDays) || 0,
+        ready,
+        readyTotal: ready.poetry + ready.word + ready.card
+      };
     }
 
     // 轻量 HTML 转义（复习清单里用户自定义内容可能含 < > & "）
@@ -5470,6 +5446,15 @@ words: [
       if (glabel) glabel.innerText = volumeToGrade(currentVolume()) + volumeToSemester(currentVolume()) + '（' + currentVolume() + '）';
       renderAll();
       updateDateSubtitle();
+
+      // 恢复上次选择的背诵子库（E：记住默认子库）
+      try {
+        const saved = localStorage.getItem('mem_last_sublib');
+        if (saved === 'word' || saved === 'card' || saved === 'poetry') {
+          const btn = document.getElementById('memTab' + saved.charAt(0).toUpperCase() + saved.slice(1));
+          switchMemorySubTab(saved, btn);
+        }
+      } catch(e){}
 
       // 自动同步：开启且已设同步码则启动时从云端拉取最新
       if (localStorage.getItem(SYNC_AUTO_KEY) === '1' && getSyncCode()) {
