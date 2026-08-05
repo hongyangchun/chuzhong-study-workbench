@@ -1584,11 +1584,11 @@
         </div>
 
         <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md);">
-          <h4 style="color:var(--accent-orange); margin-bottom:6px;">示例数据重置</h4>
-          <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">清除内置的初始演示数据（含全部册教材库），仅保留您自己登记/新增的内容。误清后可一键恢复教材默认库。</p>
+          <h4 style="color:var(--accent-orange); margin-bottom:6px;">示例数据 / 背诵库</h4>
+          <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">清除内置的初始演示数据，仅保留您自己登记 / 新增的内容。古诗文与词汇背诵库通过「按教材版本导入」建立，导入后可自由编辑与删除。</p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn btn-outline btn-sm" onclick="clearOnlyDemoData()">只清除示例数据</button>
-            <button class="btn btn-primary btn-sm" onclick="restoreDefaultLibrary()">恢复教材默认库</button>
+            <button class="btn btn-outline btn-sm" onclick="clearImportedLibrary()">清除已导入教材内容</button>
             <button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button>
           </div>
         </div>
@@ -1623,61 +1623,7 @@
   <canvas id="posterCanvas" width="750" height="1000" style="display:none;"></canvas>
 
   <script>
-    // ------------------------------------------------------------------
-    // 1. 统编版七年级上册古诗文 16 篇完备数据（作为初始背诵库，存于 localStorage）
-    // ------------------------------------------------------------------
-    function getDefaultPoetryData() {
-      return [
-      { id: 1, title: "观沧海", author: "曹操", content: "东临碣石，以观沧海。\n水何澹澹，山岛竦峙。\n树木丛生，百草丰茂。\n秋风萧瑟，洪波涌起。\n日月之行，若出其中；\n星汉灿烂，若出其里。\n幸甚至哉，歌以咏志。" },
-      { id: 2, title: "闻王昌龄左迁龙标遥有此寄", author: "李白", content: "杨花落尽子规啼，闻道龙标过五溪。\n我寄愁心与明月，随风直到夜郎西。" },
-      { id: 3, title: "次北固山下", author: "王湾", content: "客路青山外，行舟绿水前。\n潮平两岸阔，风正一帆悬。\n海日生残夜，江春入旧年。\n乡书何处达？归雁洛阳边。" },
-      { id: 4, title: "天净沙·秋思", author: "马致远", content: "枯藤老树昏鸦，小桥流水人家，古道西风瘦马。\n夕阳西下，断肠人在天涯。" },
-      { id: 5, title: "咏雪", author: "《世说新语》", content: "谢太傅寒雪日内集，与儿女讲论文义。俄而雪骤，公欣然曰：“白雪纷纷何所似？”兄子胡儿曰：“撒盐空中差可拟。”兄女道韫曰：“未若柳絮因风起。”公大笑乐。即公大兄无奕女，左将军王凝之妻也。" },
-      { id: 6, title: "陈太丘与友期行", author: "《世说新语》", content: "陈太丘与友期行，期日中。过中不至，太丘舍去，去后乃至。元方时年七岁，门外戏。客问元方：“尊君在不？”答曰：“待君久不至，已去。”友便怒曰：“非人哉！与人期行，相委而去。”元方曰：“君与家君期日中。日中不至，则是无信；对子骂父，则是无礼。”友惭，下车引之。元方入门不顾。" },
-      { id: 7, title: "《论语》十二章", author: "孔子弟子及再传弟子", content: "子曰：“学而时习之，不亦说乎？有朋自远方来，不亦乐乎？人不知而不愠，不亦君子乎？”\n曾子曰：“吾日三省吾身：为人谋而不忠乎？与朋友交而不信乎？传不习乎？”\n子曰：“吾十有五而志于学，三十而立，四十而不惑，五十而知天命，六十而耳顺，七十而从心所欲，不逾矩。”\n子曰：“温故而知新，可以为师矣。”\n子曰：“学而不思则罔，思而不学则殆。”\n子曰：“贤哉，回也！一箪食，一瓢饮，在陋巷，人不堪其忧，回也不改其乐。贤哉，回也！”\n子曰：“知之者不如好之者，好之者不如乐之者。”\n子曰：“饭疏食，饮水，曲肱而枕之，乐亦在其中矣。不义而富且贵，于我如浮云。”\n子曰：“三人行，必有我师焉。择其善者而从之，其不善者而改之。”\n子在川上曰：“逝者如斯夫，不舍昼夜。”\n子曰：“三军可夺帅也，匹夫不可夺志也。”\n子夏曰：“博学而笃志，切问而近思，仁在其中矣。”" },
-      { id: 8, title: "诫子书", author: "诸葛亮", content: "夫君子之行，静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。夫学须静也，才须学也，非学无以广才，非志无以成学。淫慢则不能励精，险躁则不能冶性。年与时驰，意与日去，遂成枯落，多不接世，悲守穷庐，将复何及！" },
-      { id: 9, title: "峨眉山月歌", author: "李白", content: "峨眉山月半轮秋，影入平羌江水流。\n夜发清溪向三峡，思君不见下渝州。" },
-      { id: 10, title: "江南逢李龟年", author: "杜甫", content: "岐王宅里寻常见，崔九堂前几度闻。\n正是江南好风景，落花时节又逢君。" },
-      { id: 11, title: "行军九日思长安故园", author: "岑参", content: "强欲登高去，无人送酒来。\n遥怜故园菊，应傍战场开。" },
-      { id: 12, title: "夜雨寄北", author: "李商隐", content: "君问归期未有期，巴山夜雨涨秋池。\n何当共剪西窗烛，却话巴山夜雨时。" },
-      { id: 13, title: "十一月四日风雨大作", author: "陆游", content: "僵卧孤村不自哀，尚思为国戍轮台。\n夜阑卧听风吹雨，铁马冰河入梦来。" },
-      { id: 14, title: "潼关怀古", author: "张养浩", content: "峰峦如聚，波涛如怒，山河表里潼关路。望西都，意踌躇。伤心秦汉经行处，宫阙万间都做了土。兴，百姓苦；亡，百姓苦。" },
-      { id: 15, title: "狼", author: "蒲松龄", content: "一屠晚归，担中肉尽，止有剩骨。途中两狼，缀行甚远。屠惧，投以骨。一狼得骨止，一狼仍从。复投之，后狼止而前狼又至。骨已尽矣，而两狼之并驱如故。屠大窘，恐前后受其敌。顾野有麦场，场主积薪其中，苫蔽成丘。屠乃奔倚其下，弛担持刀。狼不敢前，眈眈相向。少时，一狼径去，其一犬坐于前。久之，目似瞑，意暇甚。屠暴起，以刀劈狼首，又数刀毙之。方欲行，转视积薪后，一狼洞其中，意将隧道以攻其后也。身已半入，止露尻尾。屠自后断其股，亦毙之。乃悟前狼假寐，盖以诱敌。狼亦黠矣，而顷刻两毙，禽兽之变诈几何哉？止增笑耳。" },
-      { id: 16, title: "穿井得一人", author: "《吕氏春秋》", content: "宋之丁氏，家无井而出溉汲，常一人居外。及其家穿井，告人曰：“吾穿井得一人。”有闻而传之者：“丁氏穿井得一人。”国人道之，闻之于宋君。宋君令人问之于丁氏。丁氏对曰：“得一人之使，非得一人于井中也。”求闻之若此，不若无闻也。" }
-      ];
-    }
-
-    // ------------------------------------------------------------------
-    // 2. 初中英语课标词汇 24 个精选词汇（作为初始背诵库，存于 localStorage）
-    // ------------------------------------------------------------------
-    function getDefaultWordData() {
-      return [
-      { id: 1, word: "abandon", phonetic: "[əˈbændən]", meaning: "v. 放弃；抛弃", example: "Never abandon your dreams." },
-      { id: 2, word: "ability", phonetic: "[əˈbɪləti]", meaning: "n. 能力；才能", example: "Practice improves speaking ability." },
-      { id: 3, word: "accept", phonetic: "[əkˈsept]", meaning: "v. 接受；承认", example: "She accepted the concert invitation." },
-      { id: 4, word: "accident", phonetic: "[ˈæksɪdənt]", meaning: "n. 事故；意外", example: "Be careful to avoid traffic accidents." },
-      { id: 5, word: "achieve", phonetic: "[əˈtʃiːv]", meaning: "v. 实现；达到", example: "You can achieve your academic goals." },
-      { id: 6, word: "active", phonetic: "[ˈæktɪv]", meaning: "adj. 积极的；活跃的", example: "Tom is active in class discussions." },
-      { id: 7, word: "activity", phonetic: "[ækˈtɪvəti]", meaning: "n. 活动", example: "After-school activities enrich our life." },
-      { id: 8, word: "adapt", phonetic: "[əˈdæpt]", meaning: "v. 适应；改编", example: "Adapt quickly to junior high life." },
-      { id: 9, word: "addition", phonetic: "[əˈdɪʃn]", meaning: "n. 增加；加法", example: "In addition to math, he loves art." },
-      { id: 10, word: "address", phonetic: "[əˈdres]", meaning: "n. 地址 v. 解决", example: "Write your address and phone number." },
-      { id: 11, word: "advantage", phonetic: "[ədˈvɑːntɪdʒ]", meaning: "n. 优势；有利条件", example: "Reading gives you a big advantage." },
-      { id: 12, word: "advice", phonetic: "[ədˈvaɪs]", meaning: "n. 建议；忠告", example: "Our teacher gave us great advice." },
-      { id: 13, word: "afford", phonetic: "[əˈfɔːd]", meaning: "v. 买得起；承担得起", example: "We can afford to buy these books." },
-      { id: 14, word: "afraid", phonetic: "[əˈfreɪd]", meaning: "adj. 害怕的；担心的", example: "Don't be afraid of making mistakes." },
-      { id: 15, word: "Africa", phonetic: "[ˈæfrɪkə]", meaning: "n. 非洲", example: "Wild lions live freely in Africa." },
-      { id: 16, word: "against", phonetic: "[əˈɡenst]", meaning: "prep. 反对；倚靠", example: "Our team played against Class 3." },
-      { id: 17, word: "agree", phonetic: "[əˈɡriː]", meaning: "v. 同意；赞成", example: "We all agreed on this study plan." },
-      { id: 18, word: "agriculture", phonetic: "[ˈæɡrɪkʌltʃə]", meaning: "n. 农业", example: "Smart tech boosts modern agriculture." },
-      { id: 19, word: "ahead", phonetic: "[əˈhed]", meaning: "adv. 在前面；提前", example: "Plan your tasks well ahead of time." },
-      { id: 20, word: "aim", phonetic: "[eɪm]", meaning: "n. 目标 v. 旨在", example: "My aim is to master English grammar." },
-      { id: 21, word: "air", phonetic: "[eə(r)]", meaning: "n. 空气；天空", example: "Fresh air makes us energetic." },
-      { id: 22, word: "alive", phonetic: "[əˈlaɪv]", meaning: "adj. 活着的；生机的", example: "Spring rain brought trees alive." },
-      { id: 23, word: "allow", phonetic: "[əˈlaʊ]", meaning: "v. 允许；准许", example: "Teacher allowed 10 mins for group work." },
-      { id: 24, word: "almost", phonetic: "[ˈɔːlməʊst]", meaning: "adv. 几乎；差不多", example: "It took almost 2 hours to finish." }
-      ];
-    }
+    // 说明：原「只读教材工厂库」数据已移除——古诗文 / 词汇统一由 EDITION_PRESETS「按教材版本导入」写入 userPoetry / userWords。
 
     // ---- 学年/册 维度 ----
     // 册顺序贯穿初中三年：7上 / 7下 / 8上 / 8下 / 9上 / 9下
@@ -1935,47 +1881,19 @@
       }
     };
 
-    function getDefaultPoetryBank() {
-      return {
-        '7上': getDefaultPoetryData(),
-        '7下': [
-          { id:101, title:"登幽州台歌", author:"陈子昂", content:"前不见古人，后不见来者。\n念天地之悠悠，独怆然而涕下！" },
-          { id:102, title:"望岳", author:"杜甫", content:"岱宗夫如何？齐鲁青未了。\n造化钟神秀，阴阳割昏晓。\n荡胸生曾云，决眦入归鸟。\n会当凌绝顶，一览众山小。" },
-          { id:103, title:"游山西村", author:"陆游", content:"莫笑农家腊酒浑，丰年留客足鸡豚。\n山重水复疑无路，柳暗花明又一村。\n箫鼓追随春社近，衣冠简朴古风存。\n从今若许闲乘月，拄杖无时夜叩门。" },
-          { id:104, title:"己亥杂诗(其五)", author:"龚自珍", content:"浩荡离愁白日斜，吟鞭东指即天涯。\n落红不是无情物，化作春泥更护花。" },
-          { id:105, title:"泊秦淮", author:"杜牧", content:"烟笼寒水月笼沙，夜泊秦淮近酒家。\n商女不知亡国恨，隔江犹唱后庭花。" }
-        ],
-        '8上': [], '8下': [], '9上': [], '9下': []
-      };
-    }
-    function getDefaultWordBank() {
-      return {
-        '7上': getDefaultWordData(),
-        '7下': [
-          { id:101, word:"background", phonetic:"[ˈbækɡraʊnd]", meaning:"n. 背景", example:"The background of the story is a small village." },
-          { id:102, word:"balance", phonetic:"[ˈbæləns]", meaning:"n. 平衡 v. 使平衡", example:"Keep a balance between study and rest." },
-          { id:103, word:"basic", phonetic:"[ˈbeɪsɪk]", meaning:"adj. 基本的；基础的", example:"These are the basic rules of grammar." },
-          { id:104, word:"bear", phonetic:"[beə(r)]", meaning:"v. 承受；忍受 n. 熊", example:"She can't bear the loud noise." },
-          { id:105, word:"beautiful", phonetic:"[ˈbjuːtɪfl]", meaning:"adj. 美丽的", example:"What a beautiful sunset!" },
-          { id:106, word:"because", phonetic:"[bɪˈkɒz]", meaning:"conj. 因为", example:"We stayed home because it rained." }
-        ],
-        '8上': [], '8下': [], '9上': [], '9下': []
-      };
-    }
-    // 规范化获取背诵库（兼容旧数据；poetryBank/wordBank 为按册对象，缺失[undefined]时自动用内置默认库初始化）
-    // 注意：必须用 === undefined 判断，清空所有数据后 poetryBank 为 {}（空对象是 falsy），
-    // 若用 !appData.poetryBank 会在清空后被重新填充默认库，导致"清空"失效。
-    function getPoetryBank() {
-      if (appData.poetryBank === undefined) appData.poetryBank = getDefaultPoetryBank();
-      return appData.poetryBank;
-    }
-    function getWordBank() {
-      if (appData.wordBank === undefined) appData.wordBank = getDefaultWordBank();
-      return appData.wordBank;
-    }
-    function getPoetryList(vol) { return (getPoetryBank()[vol] || []); }
-    function getWordList(vol) { return (getWordBank()[vol] || []); }
+    // 注意：原「只读教材库」(poetryBank/wordBank) 已废弃——古诗文 / 词汇统一以 userPoetry / userWords
+    // 作为唯一可背诵库（可编辑、可导入、可删除，见「按教材版本导入」与自定义 CRUD）。
     function currentVolume() { return appData.currentVolume || '7上'; }
+
+    // 背诵库按当前册可见：导入项带 vol，按册过滤；手动新增无 vol，视为通用、始终可见。
+    function visiblePoetry() {
+      const v = currentVolume();
+      return (appData.userPoetry || []).filter(p => !p.vol || p.vol === v);
+    }
+    function visibleWords() {
+      const v = currentVolume();
+      return (appData.userWords || []).filter(w => !w.vol || w.vol === v);
+    }
     function switchVolume(v) {
       appData.currentVolume = v;
       allWordIndex = 0;
@@ -2081,16 +1999,8 @@
           { id: "hw-demo-2", subject: "语文", content: "背诵《观沧海》全文并默写在作业本上", dueDate: tomorrow, completed: false, isDemo: true, vol: '7上', createdAt: today },
           { id: "hw-demo-3", subject: "英语", content: "抄写初一课标词汇 Unit 1 单词并造句", dueDate: tomorrow, completed: true, isDemo: true, vol: '7上', createdAt: today }
         ],
-        poetryBank: getDefaultPoetryBank(),
-        wordBank: getDefaultWordBank(),
-        poetryMemory: {
-          1: { stage: 1, nextReview: today, forgetCountToday: 0, lastForgetDate: "", graduated: false, isDemo: true },
-          2: { stage: 0, nextReview: tomorrow, forgetCountToday: 0, lastForgetDate: "", graduated: false, isDemo: true }
-        },
-        wordMemory: {
-          1: { stage: 2, nextReview: today, forgetCountToday: 0, lastForgetDate: "", graduated: false, isDemo: true },
-          2: { stage: 3, nextReview: today, forgetCountToday: 0, lastForgetDate: "", graduated: true, isDemo: true }
-        },
+        poetryMemory: {},
+        wordMemory: {},
         userPoetry: [],
         userWords: [],
         cardMemory: {
@@ -2116,8 +2026,6 @@
         },
         homework: [],
         currentVolume: '7上',
-        poetryBank: {},
-        wordBank: {},
         poetryMemory: {},
         wordMemory: {},
         userPoetry: [],
@@ -2158,6 +2066,38 @@
       if (!appData) { appData = getInitialData(); return; }
       if (!appData.cardMemory) appData.cardMemory = {};
       if (!appData.userCards) appData.userCards = [];
+      if (!appData.userPoetry) appData.userPoetry = [];
+      if (!appData.userWords) appData.userWords = [];
+      migrateLegacyBanks();
+    }
+
+    // 迁移：旧版只读教材库 poetryBank / wordBank（按册对象）→ 统一并入 userPoetry / userWords，
+    // 保持原 id 不变，已积累的背诵进度（poetryMemory / wordMemory 按 id 索引）因此不丢。
+    function migrateLegacyBanks() {
+      let moved = 0;
+      if (appData.poetryBank && typeof appData.poetryBank === 'object') {
+        Object.keys(appData.poetryBank).forEach(vol => {
+          (appData.poetryBank[vol] || []).forEach(p => {
+            if (!appData.userPoetry.find(x => String(x.id) === String(p.id))) {
+              appData.userPoetry.push(Object.assign({}, p, { vol: p.vol || vol, isDefault: true }));
+              moved++;
+            }
+          });
+        });
+        delete appData.poetryBank;
+      }
+      if (appData.wordBank && typeof appData.wordBank === 'object') {
+        Object.keys(appData.wordBank).forEach(vol => {
+          (appData.wordBank[vol] || []).forEach(w => {
+            if (!appData.userWords.find(x => String(x.id) === String(w.id))) {
+              appData.userWords.push(Object.assign({}, w, { vol: w.vol || vol, isDefault: true }));
+              moved++;
+            }
+          });
+        });
+        delete appData.wordBank;
+      }
+      if (moved > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
     }
 
     function saveData() {
@@ -2309,16 +2249,16 @@
       document.getElementById('badge-hw').innerText = urgentHwCount;
       document.getElementById('m-badge-hw').innerText = urgentHwCount;
 
-      // 记忆 Badge: 仅统计已有进度且到期需复习的古诗词、单词与通用记忆卡（跨全部册）
+      // 记忆 Badge: 仅统计已有进度且到期需复习的古诗词、单词与通用记忆卡（当前册）
       let memDueCount = 0;
-      Object.values(getPoetryBank()).forEach(arr => arr.forEach(p => {
+      visiblePoetry().forEach(p => {
         const mem = appData.poetryMemory ? appData.poetryMemory[p.id] : null;
         if (mem && !mem.graduated && mem.nextReview <= today) memDueCount++;
-      }));
-      Object.values(getWordBank()).forEach(arr => arr.forEach(w => {
+      });
+      visibleWords().forEach(w => {
         const mem = appData.wordMemory ? appData.wordMemory[w.id] : null;
         if (mem && !mem.graduated && mem.nextReview <= today) memDueCount++;
-      }));
+      });
       (appData.userCards || []).forEach(c => {
         if (!c.vol || c.vol === currentVolume()) {
           const mem = appData.cardMemory[c.id];
@@ -2363,8 +2303,8 @@
         }
       });
 
-      // 2. 记忆项 (古诗) — 仅当前册
-      getPoetryList(currentVolume()).forEach(p => {
+      // 2. 记忆项 (古诗) — 当前册可背诵库
+      visiblePoetry().forEach(p => {
         const mem = appData.poetryMemory[p.id] || { nextReview: today, graduated: false };
         if (!mem.graduated && mem.nextReview <= today) {
           items.push({
@@ -2381,8 +2321,8 @@
         }
       });
 
-      // 3. 记忆项 (单词) — 仅当前册
-      getWordList(currentVolume()).forEach(w => {
+      // 3. 记忆项 (单词) — 当前册可背诵库
+      visibleWords().forEach(w => {
         const mem = appData.wordMemory[w.id] || { nextReview: today, graduated: false };
         if (!mem.graduated && mem.nextReview <= today) {
           items.push({
@@ -2480,12 +2420,12 @@
 
       // 毕业率计算（跨全部册）
       let poetryGrad = 0, poetryTotal = 0;
-      Object.values(getPoetryBank()).forEach(arr => arr.forEach(p => { poetryTotal++; if (appData.poetryMemory[p.id] && appData.poetryMemory[p.id].graduated) poetryGrad++; }));
+      (appData.userPoetry || []).forEach(p => { poetryTotal++; if (appData.poetryMemory[p.id] && appData.poetryMemory[p.id].graduated) poetryGrad++; });
       const poetryRate = poetryTotal > 0 ? ((poetryGrad / poetryTotal) * 100).toFixed(1) : '0.0';
       document.getElementById('stat-poetry').innerText = `${poetryRate}%`;
 
       let wordGrad = 0, wordTotal = 0;
-      Object.values(getWordBank()).forEach(arr => arr.forEach(w => { wordTotal++; if (appData.wordMemory[w.id] && appData.wordMemory[w.id].graduated) wordGrad++; }));
+      (appData.userWords || []).forEach(w => { wordTotal++; if (appData.wordMemory[w.id] && appData.wordMemory[w.id].graduated) wordGrad++; });
       const wordRate = wordTotal > 0 ? ((wordGrad / wordTotal) * 100).toFixed(1) : '0.0';
       document.getElementById('stat-words').innerText = `${wordRate}%`;
 
@@ -2742,43 +2682,13 @@
       container.innerHTML = '';
 
       // 顶部 tab 计数动态联动（随当前册变化）
+      const list = visiblePoetry();
       const pc = document.getElementById('memPoetryCount');
-      if (pc) pc.innerText = getPoetryList(currentVolume()).length + (appData.userPoetry ? appData.userPoetry.length : 0);
+      if (pc) pc.innerText = list.length;
 
-      // 当前册古诗（来自可持久化的按册背诵库）
-      getPoetryList(currentVolume()).forEach(p => {
-        const mem = appData.poetryMemory[p.id];
-        const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已通关毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">下次复习: ${mem.nextReview}</span>`) : `<span style="font-size:12px; color:var(--text-sub);">未开始复习</span>`;
-
-        const lines = p.content.split('\n');
-        let contentHtml = '';
-        lines.forEach(l => {
-          contentHtml += `<div class="poetry-line" onclick="toggleLineMask(this)">${l}</div>`;
-        });
-
-        const card = document.createElement('div');
-        card.className = 'poetry-card';
-        card.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div>
-              <div class="poetry-title">${p.title}</div>
-              <div class="poetry-author">${p.author} · ${mem ? '艾宾浩斯复习第 ' + (mem.stage + 1) + ' 轮' : '教材必备篇目'}</div>
-            </div>
-            <div>${displayReview}</div>
-          </div>
-          <div class="poetry-content">${contentHtml}</div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="speakText('${p.title}。${p.author}。${p.content.replace(/\n/g, '，')}')">🔊 系统语音朗读</button>
-            <button class="btn btn-primary btn-sm" onclick="handleMemoryReview('poetry', ${p.id}, true)">记住啦 (+1级)</button>
-            <button class="btn btn-accent btn-sm" onclick="handleMemoryReview('poetry', ${p.id}, false)">忘记了 (从头来)</button>
-          </div>
-        `;
-        container.appendChild(card);
-      });
-
-      // 用户自定义古诗
-      if (appData.userPoetry && appData.userPoetry.length > 0) {
-        appData.userPoetry.forEach(p => {
+      // userPoetry 即唯一可背诵库（可编辑 / 可导入 / 可删除），按当前册展示
+      if (list.length > 0) {
+        list.forEach(p => {
           const mem = appData.poetryMemory[p.id];
           const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已通关毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">下次复习: ${mem.nextReview}</span>`) : `<span style="font-size:12px; color:var(--text-sub);">未开始复习</span>`;
 
@@ -2810,6 +2720,8 @@
           `;
           container.appendChild(card);
         });
+      } else {
+        container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">当前册（' + currentVolume() + '）还没有古诗文背诵卡。<br>点击上方「📚 按教材版本导入」一键载入统编版教材，或点「+ 新增古诗文」手动添加。</div>';
       }
     }
 
@@ -2839,17 +2751,17 @@
       }
     }
 
-    // 单词翻卡渲染（内置 + 用户自定义词，总数随背诵库动态变化）
+    // 单词翻卡渲染（userWords 即唯一可背诵库，可编辑 / 可导入 / 可删除）
     function getAllWords() {
-      return getWordList(currentVolume()).concat(appData.userWords || []);
+      return visibleWords();
     }
 
     function renderWordView() {
       const container = document.getElementById('word-card-view');
-      // 顶部 tab 计数动态联动（随当前册变化）
-      const wc = document.getElementById('memWordCount');
-      if (wc) wc.innerText = getWordList(currentVolume()).length + (appData.userWords ? appData.userWords.length : 0);
       const allWords = getAllWords();
+      // 顶部 tab 计数（userWords 即唯一可背诵库，按当前册展示）
+      const wc = document.getElementById('memWordCount');
+      if (wc) wc.innerText = allWords.length;
       if (allWordIndex >= allWords.length) allWordIndex = 0;
       if (allWords.length === 0) {
         container.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-sub);">暂无单词卡片。</div>`;
@@ -3244,9 +3156,9 @@
       };
 
       let poetryGrad = 0, poetryTotal = 0;
-      Object.values(getPoetryBank()).forEach(arr => arr.forEach(p => { poetryTotal++; if (appData.poetryMemory[p.id] && appData.poetryMemory[p.id].graduated) poetryGrad++; }));
+      (appData.userPoetry || []).forEach(p => { poetryTotal++; if (appData.poetryMemory[p.id] && appData.poetryMemory[p.id].graduated) poetryGrad++; });
       let wordGrad = 0, wordTotal = 0;
-      Object.values(getWordBank()).forEach(arr => arr.forEach(w => { wordTotal++; if (appData.wordMemory[w.id] && appData.wordMemory[w.id].graduated) wordGrad++; }));
+      (appData.userWords || []).forEach(w => { wordTotal++; if (appData.wordMemory[w.id] && appData.wordMemory[w.id].graduated) wordGrad++; });
       let errorGrad = 0;
       appData.errors.forEach(e => { if (e.graduated) errorGrad++; });
 
@@ -3429,21 +3341,13 @@
       slim.homework = (slim.homework || []).filter(h => keepSet.has(h.vol));
       slim.errors = (slim.errors || []).filter(e => keepSet.has(e.vol));
 
-      // 背诵库：仅保留当前年级册
-      const slimPB = {}, slimWB = {};
-      keep.forEach(v => {
-        if (slim.poetryBank && slim.poetryBank[v]) slimPB[v] = slim.poetryBank[v];
-        if (slim.wordBank && slim.wordBank[v]) slimWB[v] = slim.wordBank[v];
-      });
-      slim.poetryBank = slimPB; slim.wordBank = slimWB;
-
       // 记忆进度：按册映射出被归档的诗/词/卡 ID，其余保留
+      // （背诵库统一为 userPoetry / userWords，按条目自身的 vol 判定归属）
       const arcPoemIds = new Set(), arcWordIds = new Set(), arcCardIds = new Set();
-      others.forEach(v => {
-        (appData.poetryBank[v] || []).forEach(p => arcPoemIds.add(String(p.id)));
-        (appData.wordBank[v] || []).forEach(w => arcWordIds.add(String(w.id)));
-        (appData.userCards || []).forEach(c => { if (c.vol === v) arcCardIds.add(String(c.id)); });
-      });
+      const otherSet = new Set(others);
+      (appData.userPoetry || []).forEach(p => { if (p.vol && otherSet.has(p.vol)) arcPoemIds.add(String(p.id)); });
+      (appData.userWords || []).forEach(w => { if (w.vol && otherSet.has(w.vol)) arcWordIds.add(String(w.id)); });
+      (appData.userCards || []).forEach(c => { if (c.vol && otherSet.has(c.vol)) arcCardIds.add(String(c.id)); });
       const slimPM = {}, slimWM = {}, slimCM = {};
       Object.keys(slim.poetryMemory || {}).forEach(k => { if (!arcPoemIds.has(k)) slimPM[k] = slim.poetryMemory[k]; });
       Object.keys(slim.wordMemory || {}).forEach(k => { if (!arcWordIds.has(k)) slimWM[k] = slim.wordMemory[k]; });
@@ -3459,16 +3363,11 @@
       const removed = {
         homework: (appData.homework || []).filter(h => !keepSet.has(h.vol)),
         errors: (appData.errors || []).filter(e => !keepSet.has(e.vol)),
-        poetryBank: {}, wordBank: {},
         poetryMemory: {}, wordMemory: {}, cardMemory: {},
         userPoetry: (appData.userPoetry || []).filter(p => p.vol && !keepSet.has(p.vol)),
         userWords: (appData.userWords || []).filter(w => w.vol && !keepSet.has(w.vol)),
         userCards: (appData.userCards || []).filter(c => c.vol && !keepSet.has(c.vol))
       };
-      others.forEach(v => {
-        if (appData.poetryBank[v]) removed.poetryBank[v] = appData.poetryBank[v];
-        if (appData.wordBank[v]) removed.wordBank[v] = appData.wordBank[v];
-      });
       arcPoemIds.forEach(k => { if (appData.poetryMemory[k]) removed.poetryMemory[k] = appData.poetryMemory[k]; });
       arcWordIds.forEach(k => { if (appData.wordMemory[k]) removed.wordMemory[k] = appData.wordMemory[k]; });
       arcCardIds.forEach(k => { if (appData.cardMemory[k]) removed.cardMemory[k] = appData.cardMemory[k]; });
@@ -3490,11 +3389,17 @@
       const d = snap.data;
       appData.homework = (appData.homework || []).concat((d.homework || []).filter(h => !(appData.homework || []).find(x => x.id === h.id)));
       appData.errors = (appData.errors || []).concat((d.errors || []).filter(e => !(appData.errors || []).find(x => x.id === e.id)));
+      // 旧版归档快照可能含 poetryBank / wordBank（按册对象），统一合并进 userPoetry / userWords
       ['poetryBank', 'wordBank'].forEach(k => {
-        if (!appData[k]) appData[k] = {};
-        if (d[k]) Object.keys(d[k]).forEach(v => {
-          if (!appData[k][v]) appData[k][v] = [];
-          appData[k][v] = appData[k][v].concat(d[k][v].filter(x => !appData[k][v].find(y => y.id === x.id)));
+        if (!d[k]) return;
+        const target = k === 'poetryBank' ? 'userPoetry' : 'userWords';
+        if (!appData[target]) appData[target] = [];
+        Object.keys(d[k]).forEach(v => {
+          (d[k][v] || []).forEach(x => {
+            if (!appData[target].find(y => String(y.id) === String(x.id))) {
+              appData[target].push(Object.assign({}, x, { vol: x.vol || v, isDefault: true }));
+            }
+          });
         });
       });
       ['poetryMemory', 'wordMemory', 'cardMemory'].forEach(k => {
@@ -3850,29 +3755,40 @@
           });
         }
 
-        // 5. 清空内置教材库（全部册），但保留用户自定义古诗文与词汇
-        appData.poetryBank = {};
-        appData.wordBank = {};
-
         saveData();
-        alert("✨ 示例数据已清理完毕！教材库已清空，您自定义的内容完好保留。");
+        alert("✨ 示例数据已清理完毕！您自定义与导入的内容完好保留。");
         renderAll();
         closeSettingsModal();
       }
     }
 
-    // 一键恢复内置教材默认库（统编版各册古诗文 + 课标词汇），不影响用户手动自定义内容
-    function restoreDefaultLibrary() {
-      if (!confirm("恢复内置教材默认库（统编版各册古诗文 + 课标词汇）？\n将重新载入只读教材库；您通过「按教材版本导入」载入的教材内容会被移除（不影响您手动新增的自定义古诗文/词汇）。")) {
+    // 清除通过「按教材版本导入」写入的教材内容（isDefault 标记），保留手动新增的自定义古诗文/词汇
+    function clearImportedLibrary() {
+      const pCount = (appData.userPoetry || []).filter(p => p.isDefault).length;
+      const wCount = (appData.userWords || []).filter(w => w.isDefault).length;
+      if (pCount === 0 && wCount === 0) {
+        alert("当前没有通过「按教材版本导入」载入的内容。");
         return;
       }
-      appData.poetryBank = getDefaultPoetryBank();
-      appData.wordBank = getDefaultWordBank();
-      // 移除通过版本导入写入的 isDefault 项，避免与只读教材库重复
-      if (appData.userPoetry) appData.userPoetry = appData.userPoetry.filter(p => !p.isDefault);
-      if (appData.userWords) appData.userWords = appData.userWords.filter(w => !w.isDefault);
+      if (!confirm("将移除通过「按教材版本导入」载入的 " + pCount + " 首古诗文、" + wCount + " 个词汇。\n您手动新增的自定义内容不受影响。确定继续？")) {
+        return;
+      }
+      const removedIds = [];
+      if (appData.userPoetry) {
+        appData.userPoetry.filter(p => p.isDefault).forEach(p => removedIds.push(String(p.id)));
+        appData.userPoetry = appData.userPoetry.filter(p => !p.isDefault);
+      }
+      if (appData.userWords) {
+        appData.userWords.filter(w => w.isDefault).forEach(w => removedIds.push(String(w.id)));
+        appData.userWords = appData.userWords.filter(w => !w.isDefault);
+      }
+      // 同步清理对应的记忆进度，避免留下孤儿数据
+      removedIds.forEach(id => {
+        if (appData.poetryMemory) delete appData.poetryMemory[id];
+        if (appData.wordMemory) delete appData.wordMemory[id];
+      });
       saveData();
-      alert("✨ 教材默认库已恢复！");
+      alert("✨ 已清除导入的教材内容，可随时重新「按教材版本导入」。");
       renderAll();
       closeSettingsModal();
     }
@@ -3916,7 +3832,7 @@
       });
     }
 
-    // 将预设写进「我的」库（userPoetry / userWords），清空该册只读教材库避免重复
+    // 将预设写进唯一可背诵库（userPoetry / userWords），同册的旧导入项会被替换
     function handleEditionImport() {
       const ed = document.getElementById('edition-select').value;
       const volSel = document.getElementById('edition-vol-select').value;
@@ -3927,8 +3843,6 @@
       if (!preset) { alert('未找到该教材版本的预设数据。'); return; }
 
       const targetVols = volSel === '__all__' ? Object.keys(preset) : [volSel];
-      if (!appData.poetryBank) appData.poetryBank = {};
-      if (!appData.wordBank) appData.wordBank = {};
       if (!appData.userPoetry) appData.userPoetry = [];
       if (!appData.userWords) appData.userWords = [];
 
@@ -3937,7 +3851,6 @@
         const volData = preset[vol];
         if (!volData) return;
         if (incPoetry) {
-          appData.poetryBank[vol] = [];
           appData.userPoetry = appData.userPoetry.filter(p => !(p.isDefault && p.vol === vol));
           (volData.poetry || []).forEach((p, i) => {
             appData.userPoetry.push({
@@ -3949,7 +3862,6 @@
           addedP += (volData.poetry || []).length;
         }
         if (incWords) {
-          appData.wordBank[vol] = [];
           appData.userWords = appData.userWords.filter(w => !(w.isDefault && w.vol === vol));
           (volData.words || []).forEach((w, i) => {
             appData.userWords.push({
@@ -3967,7 +3879,7 @@
       const parts = [];
       if (addedP) parts.push(addedP + ' 篇古诗文');
       if (addedW) parts.push(addedW + ' 个课标词汇');
-      alert('✅ 已导入教材库：' + (parts.join('，') || '（空）') + '。\n导入内容已写入「我的」库，可自由编辑 / 删除。');
+      alert('✅ 已导入教材库：' + (parts.join('，') || '（空）') + '。\n导入内容已写入背诵库，可自由编辑 / 删除。');
       renderAll();
     }
 
