@@ -1143,7 +1143,7 @@
       <div class="header-bar">
         <div class="header-title-group">
           <h1 id="page-title">放学复盘与今日任务</h1>
-          <p id="page-subtitle">今天是 2026年8月4日 · 保持专注，积少成多！</p>
+          <p id="page-subtitle">保持专注，积少成多！</p>
         </div>
         <div class="volume-switcher">
           <span id="global-volume-label" class="vol-current">初一 上（7上）</span>
@@ -1270,6 +1270,18 @@
             <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文背诵 (<span id="memPoetryCount">0</span>篇)</button>
             <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">英语课标词汇 (<span id="memWordCount">0</span>词卡片)</button>
             <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">通用记忆卡 (<span id="memCardCount">0</span>张)</button>
+          </div>
+
+          <!-- 搜索 / 状态筛选（古诗·词汇·卡 共用） -->
+          <div class="mem-filter-bar" style="margin:14px 0 4px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <input id="memSearchInput" type="search" placeholder="搜索（词 / 释义 / 作者 / 内容…）" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:16px;" oninput="onMemSearch(this.value)">
+            <select id="memFilterSelect" class="form-control" style="max-width:150px;" onchange="onMemFilter(this.value)">
+              <option value="all">全部</option>
+              <option value="due">复习到期</option>
+              <option value="start">待开始</option>
+              <option value="done">已毕业</option>
+            </select>
+            <span id="memResultCount" style="font-size:12px; color:var(--text-sub);"></span>
           </div>
 
           <!-- 古诗文区 -->
@@ -2813,6 +2825,14 @@ words: [
         'error': '错题归因与四轮消灭本'
       };
       document.getElementById('page-title').innerText = titleMap[tabName];
+      updateDateSubtitle();
+    }
+
+    // 修复 page-subtitle 写死「2026年8月4日」的 bug：动态注入今日日期
+    function updateDateSubtitle() {
+      const _d = getTodayDateStr().split('-');
+      const _sub = document.getElementById('page-subtitle');
+      if (_sub) _sub.innerText = `今天是 ${_d[0]}年${parseInt(_d[1],10)}月${parseInt(_d[2],10)}日 · 保持专注，积少成多！`;
     }
 
     function renderAll() {
@@ -3350,15 +3370,49 @@ words: [
       if (sub === 'card') renderCardView();
     }
 
+    // ---- 记忆 tab 搜索 / 状态筛选（F1）----
+    let memSearch = '';
+    let memFilter = 'all';
+    function onMemSearch(v){ memSearch = (v || '').trim().toLowerCase(); renderMemoryLists(); }
+    function onMemFilter(v){ memFilter = v || 'all'; renderMemoryLists(); }
+    function filterByStatus(arr, getMem){
+      if (memFilter === 'start') return arr.filter(x => !getMem(x));
+      if (memFilter === 'due') return arr.filter(x => { const m = getMem(x); return m && !m.graduated && m.nextReview <= getTodayDateStr(); });
+      if (memFilter === 'done') return arr.filter(x => { const m = getMem(x); return m && m.graduated; });
+      return arr;
+    }
+    function filterByText(arr, getText){
+      if (!memSearch) return arr;
+      return arr.filter(x => getText(x).toLowerCase().includes(memSearch));
+    }
+    function filteredPoetry(){
+      return filterByText(filterByStatus(visiblePoetry(), p => appData.poetryMemory && appData.poetryMemory[p.id]),
+        p => (p.title + ' ' + p.author + ' ' + p.content));
+    }
+    function filteredWords(){
+      return filterByText(filterByStatus(getAllWords(), w => appData.wordMemory && appData.wordMemory[w.id]),
+        w => (w.word + ' ' + w.phonetic + ' ' + w.meaning + ' ' + w.example));
+    }
+    function filteredCards(){
+      return filterByText(filterByStatus(getAllCards(), c => appData.cardMemory && appData.cardMemory[c.id]),
+        c => (c.front + ' ' + (c.back || '') + ' ' + (c.subject || '')));
+    }
+    function renderMemoryLists(){
+      renderPoetryList(); renderWordView(); renderCardView();
+      const total = filteredPoetry().length + filteredWords().length + filteredCards().length;
+      const el = document.getElementById('memResultCount');
+      if (el) el.innerText = (memSearch || memFilter !== 'all') ? `匹配 ${total} 条` : '';
+    }
+
     // 古诗词背诵渲染
     function renderPoetryList() {
       const container = document.getElementById('poetry-list-container');
       container.innerHTML = '';
 
-      // 顶部 tab 计数动态联动（随当前册变化）
-      const list = visiblePoetry();
+      // 顶部 tab 计数显示当前册总数（保持稳定），列表按搜索/筛选渲染
       const pc = document.getElementById('memPoetryCount');
-      if (pc) pc.innerText = list.length;
+      if (pc) pc.innerText = visiblePoetry().length;
+      const list = filteredPoetry();
 
       // userPoetry 即唯一可背诵库（可编辑 / 可导入 / 可删除），按当前册展示
       if (list.length > 0) {
@@ -3395,12 +3449,14 @@ words: [
           container.appendChild(card);
         });
       } else {
-        // 空状态才给导入引导：常驻入口统一收在「⚙️ 设置 → 背诵库」，这里只帮新手不迷路
-        container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
-          + '当前册（' + currentVolume() + '）还没有古诗文背诵卡。<br>可一键载入统编版教材，或点上方「+ 新增古诗文」手动添加。'
-          + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
-          + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
-          + '</div>';
+        const hasAny = visiblePoetry().length > 0;
+        container.innerHTML = hasAny
+          ? '<div style="text-align:center; padding:34px 16px; color:var(--text-sub);">没有匹配的古诗文，换个关键词或筛选条件试试～</div>'
+          : '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
+            + '当前册（' + currentVolume() + '）还没有古诗文背诵卡。<br>可一键载入统编版教材，或点上方「+ 新增古诗文」手动添加。'
+            + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
+            + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
+            + '</div>';
       }
     }
 
@@ -3437,18 +3493,20 @@ words: [
 
     function renderWordView() {
       const container = document.getElementById('word-card-view');
-      const allWords = getAllWords();
-      // 顶部 tab 计数（userWords 即唯一可背诵库，按当前册展示）
+      // 顶部 tab 计数显示当前册总数，翻卡区按搜索/筛选渲染
       const wc = document.getElementById('memWordCount');
-      if (wc) wc.innerText = allWords.length;
+      if (wc) wc.innerText = getAllWords().length;
+      const allWords = filteredWords();
       if (allWordIndex >= allWords.length) allWordIndex = 0;
       if (allWords.length === 0) {
-        // 与古诗文区一致：空状态才给导入引导，常驻入口在「⚙️ 设置 → 背诵库」
-        container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
-          + '当前册（' + currentVolume() + '）还没有词汇卡片。<br>可一键载入课标核心词，或点上方「+ 新增词汇卡片」手动添加。'
-          + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
-          + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
-          + '</div>';
+        const hasAny = getAllWords().length > 0;
+        container.innerHTML = hasAny
+          ? '<div style="text-align:center; padding:34px 16px; color:var(--text-sub);">没有匹配的单词，换个关键词或筛选条件试试～</div>'
+          : '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
+            + '当前册（' + currentVolume() + '）还没有词汇卡片。<br>可一键载入课标核心词，或点上方「+ 新增词汇卡片」手动添加。'
+            + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
+            + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
+            + '</div>';
         return;
       }
 
@@ -3487,13 +3545,15 @@ words: [
     }
 
     function prevWord() {
-      const len = getAllWords().length;
+      const len = filteredWords().length;
+      if (len === 0) return;
       allWordIndex = (allWordIndex - 1 + len) % len;
       renderWordView();
     }
 
     function nextWord() {
-      const len = getAllWords().length;
+      const len = filteredWords().length;
+      if (len === 0) return;
       allWordIndex = (allWordIndex + 1) % len;
       renderWordView();
     }
@@ -3507,11 +3567,14 @@ words: [
       const container = document.getElementById('card-view');
       if (!container) return;
       const cc = document.getElementById('memCardCount');
-      const allCards = getAllCards();
-      if (cc) cc.innerText = allCards.length;
+      if (cc) cc.innerText = getAllCards().length;
 
+      const allCards = filteredCards();
       if (allCards.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">当前册还没有通用记忆卡。<br>点击右上角「+ 新增记忆卡」，把道法 / 历史 / 地理 / 生物等重点知识做成卡片吧！</div>`;
+        const hasAny = getAllCards().length > 0;
+        container.innerHTML = hasAny
+          ? '<div style="text-align:center; padding:34px 16px; color:var(--text-sub);">没有匹配的卡片，换个关键词或筛选条件试试～</div>'
+          : `<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">当前册还没有通用记忆卡。<br>点击右上角「+ 新增记忆卡」，把道法 / 历史 / 地理 / 生物等重点知识做成卡片吧！</div>`;
         return;
       }
 
@@ -3552,12 +3615,14 @@ words: [
     }
 
     function prevCard() {
-      const len = getAllCards().length;
+      const len = filteredCards().length;
+      if (len === 0) return;
       allCardIndex = (allCardIndex - 1 + len) % len;
       renderCardView();
     }
     function nextCard() {
-      const len = getAllCards().length;
+      const len = filteredCards().length;
+      if (len === 0) return;
       allCardIndex = (allCardIndex + 1) % len;
       renderCardView();
     }
@@ -4849,6 +4914,7 @@ words: [
       const glabel = document.getElementById('global-volume-label');
       if (glabel) glabel.innerText = volumeToGrade(currentVolume()) + volumeToSemester(currentVolume()) + '（' + currentVolume() + '）';
       renderAll();
+      updateDateSubtitle();
 
       // 自动同步：开启且已设同步码则启动时从云端拉取最新
       if (localStorage.getItem(SYNC_AUTO_KEY) === '1' && getSyncCode()) {
