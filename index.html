@@ -1331,7 +1331,7 @@
             <select id="memFilterSelect" class="form-control" style="max-width:150px;" onchange="onMemFilter(this.value)">
               <option value="all">全部</option>
               <option value="due">复习到期</option>
-              <option value="start">待开始</option>
+              <option value="start">未开始 / 已排期</option>
               <option value="done">已毕业</option>
             </select>
             <span id="memResultCount" style="font-size:12px; color:var(--text-sub);"></span>
@@ -3190,7 +3190,7 @@ words: [
         let sub = '去背诵库挑今天想攻克的内容 →';
         if (schTotal > 0) sub = `另有 <b>${schTotal}</b> 条已排期，最晚 ${formatMonthDay(latestUnlock)} 解锁`;
         html += `<div class="focus-item summary">
-          <span class="focus-item-tag tag-summary">📚 待开始</span>
+          <span class="focus-item-tag tag-summary">📚 未开始</span>
           <div style="flex:1;">
             <div class="focus-item-text">今天可学 ${parts.join(' · ')}</div>
             <div class="focus-item-sub">${sub}</div>
