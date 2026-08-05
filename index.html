@@ -696,12 +696,34 @@
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 4px;
       border-bottom: 2px solid var(--border-color);
       padding-bottom: 8px;
       align-items: center;
     }
-    .mem-review-top { margin-left: auto; white-space: nowrap; }
+    .mem-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 12px 0 4px;
+    }
+    .mem-filter-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      flex: 1;
+      min-width: 240px;
+    }
+    .mem-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 0 0 auto;
+      margin-left: auto;
+    }
 
     .memory-tab-btn {
       font-size: 16px;
@@ -1318,21 +1340,25 @@
             <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文</button>
             <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">词汇</button>
             <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">记忆卡</button>
-            <button class="btn btn-primary btn-sm mem-review-top" onclick="startReview(currentMemorySubTab)">🚀 开始今日复习 (<span id="reviewCount-active">0</span>)</button>
-            <button class="btn btn-outline btn-sm mem-review-top" onclick="openAddCurrent()" title="新增当前子库的条目">＋ 新增</button>
           </div>
 
-          <!-- 搜索 / 状态筛选（古诗·词汇·卡 共用） -->
-          <div class="mem-filter-bar" style="margin:14px 0 4px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-            <input id="memSearchInput" type="search" placeholder="搜索（词 / 释义 / 作者 / 内容…）" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:16px;" oninput="onMemSearch(this.value)">
-            <select id="memFilterSelect" class="form-control" style="max-width:150px;" onchange="onMemFilter(this.value)">
-              <option value="focus" selected>今日优先</option>
-              <option value="all">全部</option>
-              <option value="due">复习到期</option>
-              <option value="start">未开始 / 已排期</option>
-              <option value="done">已毕业</option>
-            </select>
-            <span id="memResultCount" style="font-size:12px; color:var(--text-sub);"></span>
+          <!-- 工具栏：左侧搜索/筛选，右侧操作 -->
+          <div class="mem-toolbar">
+            <div class="mem-filter-bar">
+              <input id="memSearchInput" type="search" placeholder="搜索（词 / 释义 / 作者 / 内容…）" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:16px;" oninput="onMemSearch(this.value)">
+              <select id="memFilterSelect" class="form-control" style="max-width:150px;" onchange="onMemFilter(this.value)">
+                <option value="focus" selected>今日优先</option>
+                <option value="all">全部</option>
+                <option value="due">复习到期</option>
+                <option value="start">未开始 / 已排期</option>
+                <option value="done">已毕业</option>
+              </select>
+              <span id="memResultCount" style="font-size:12px; color:var(--text-sub);"></span>
+            </div>
+            <div class="mem-actions">
+              <button class="btn btn-outline btn-sm" onclick="openAddCurrent()" title="新增当前子库的条目">＋ 新增</button>
+              <button class="btn btn-primary btn-sm" onclick="startReview(currentMemorySubTab)">🚀 开始今日复习 (<span id="reviewCount-active">0</span>)</button>
+            </div>
           </div>
 
           <!-- 古诗文区 -->
