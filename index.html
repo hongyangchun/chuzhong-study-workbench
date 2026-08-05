@@ -741,7 +741,6 @@
     .mem-principle summary::before { content: '▸ '; }
     .mem-principle[open] summary::before { content: '▾ '; }
     .mem-principle[open] summary { margin-bottom: 4px; }
-    .mem-sub-actions { margin-bottom: 12px; }
 
     .poetry-card {
       background: var(--bg-card);
@@ -783,11 +782,6 @@
       transition: background 0.2s;
     }
 
-    .poetry-line.masked {
-      background: #E4DDD3;
-      color: transparent;
-      user-select: none;
-    }
 
     /* 单词翻卡 */
     .word-card-container {
@@ -1325,7 +1319,6 @@
             <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">词汇</button>
             <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">记忆卡</button>
             <button class="btn btn-primary btn-sm mem-review-top" onclick="startReview(currentMemorySubTab)">🚀 开始今日复习 (<span id="reviewCount-active">0</span>)</button>
-            <button class="btn btn-outline btn-sm mem-review-top" onclick="startQuiz(currentMemorySubTab)">📝 自测模式 (<span id="quizCount-active">0</span>)</button>
             <button class="btn btn-outline btn-sm mem-review-top" onclick="openAddCurrent()" title="新增当前子库的条目">＋ 新增</button>
           </div>
 
@@ -1344,9 +1337,6 @@
 
           <!-- 古诗文区 -->
           <div id="memory-sub-poetry">
-            <div class="mem-sub-actions">
-              <button class="btn btn-outline btn-sm" onclick="togglePoetryMaskAll()">一键遮句自测</button>
-            </div>
             <div id="poetry-list-container"></div>
           </div>
 
@@ -3569,7 +3559,7 @@ words: [
           const lines = p.content.split('\n');
           let contentHtml = '';
           lines.forEach(l => {
-            contentHtml += `<div class="poetry-line" onclick="toggleLineMask(this)">${l}</div>`;
+            contentHtml += `<div class="poetry-line">${l}</div>`;
           });
 
           const card = document.createElement('div');
@@ -3620,19 +3610,6 @@ words: [
               + '</div>';
         }
       }
-    }
-
-    function toggleLineMask(el) {
-      el.classList.toggle('masked');
-    }
-
-    let allMaskedState = false;
-    function togglePoetryMaskAll() {
-      allMaskedState = !allMaskedState;
-      document.querySelectorAll('.poetry-line').forEach(el => {
-        if (allMaskedState) el.classList.add('masked');
-        else el.classList.remove('masked');
-      });
     }
 
     // 网页语音朗读 API
@@ -3867,7 +3844,7 @@ words: [
 
     // ---- F3: 今日复习队列（只练「到期 + 待开始前 N 条」，避免一次翻几百张）----
     const REVIEW_NEW_BATCH = 10; // 每轮新学（待开始）最多带几张
-    let reviewMode = { active: false, type: null, list: [], index: 0 };
+    let reviewMode = { active: false, type: null, list: [], index: 0, score: { right: 0, fuzzy: 0, wrong: 0 } };
 
     function buildReviewQueue(getAll, getMem) {
       const today = getTodayDateStr();
@@ -3875,17 +3852,6 @@ words: [
       const due = all.filter(x => { const m = getMem(x); return m && !m.graduated && m.nextReview <= today; });
       const pending = all.filter(x => !getMem(x) && isAvailableToday(x)).slice(0, REVIEW_NEW_BATCH);
       return due.concat(pending);
-    }
-
-    // F5 自测题库：只抽「已学过」条目（不含没学过的待开始项），due 优先，封顶 20，保证一场自测时长可控
-    function buildQuizQueue(getAll, getMem) {
-      const today = getTodayDateStr();
-      const all = getAll();
-      const studied = all.filter(x => getMem(x));
-      const due = studied.filter(x => { const m = getMem(x); return !m.graduated && m.nextReview <= today; });
-      const others = studied.filter(x => { const m = getMem(x); return m.graduated || m.nextReview > today; });
-      const QUIZ_CAP = 20;
-      return due.concat(others).slice(0, QUIZ_CAP);
     }
 
     function reviewQueueSize(type) {
@@ -3896,14 +3862,6 @@ words: [
       return buildReviewQueue(getAll, getMem).length;
     }
 
-    function quizQueueSize(type) {
-      let getAll, getMem;
-      if (type === 'word') { getAll = getAllWords; getMem = w => appData.wordMemory && appData.wordMemory[w.id]; }
-      else if (type === 'card') { getAll = getAllCards; getMem = c => appData.cardMemory && appData.cardMemory[c.id]; }
-      else { getAll = visiblePoetry; getMem = p => appData.poetryMemory && appData.poetryMemory[p.id]; }
-      return buildQuizQueue(getAll, getMem).length;
-    }
-
     function updateReviewBadges() {
       ['poetry', 'word', 'card'].forEach(t => {
         const el = document.getElementById('reviewCount-' + t);
@@ -3911,8 +3869,6 @@ words: [
       });
       const activeEl = document.getElementById('reviewCount-active');
       if (activeEl) activeEl.innerText = reviewQueueSize(currentMemorySubTab || 'poetry');
-      const quizEl = document.getElementById('quizCount-active');
-      if (quizEl) quizEl.innerText = quizQueueSize(currentMemorySubTab || 'poetry');
     }
 
     function startReview(type) {
@@ -3925,7 +3881,7 @@ words: [
         alert('🎉 当前册（' + currentVolume() + '）的「' + label + '」暂时没有「复习到期」的内容，也还没有「待开始」的卡片。\n先去导入或新增几张再回来复习吧！');
         return;
       }
-      reviewMode = { active: true, type, list: queue, index: 0 };
+      reviewMode = { active: true, type, list: queue, index: 0, score: { right: 0, fuzzy: 0, wrong: 0 } };
       const ov = document.getElementById('review-overlay');
       ov.style.display = 'block';
       document.body.style.overflow = 'hidden';
@@ -3982,17 +3938,20 @@ words: [
         + '<div class="review-progress-bar"><div class="review-progress-fill" style="width:' + pct + '%;"></div></div>'
         + '<div style="font-size:13px; color:var(--text-sub); margin-bottom:6px;">进度 ' + pos + ' / ' + total + ' · ' + reviewPromptText(type) + '</div>'
         + cardHtml
-        + '<div style="display:flex; gap:12px; flex-wrap:wrap;">'
-        + '<button class="btn btn-accent" style="flex:1; min-width:120px;" onclick="reviewAct(false)">😵 忘记了</button>'
-        + '<button class="btn btn-primary" style="flex:1; min-width:120px;" onclick="reviewAct(true)">✅ 记住啦 (+1级)</button>'
+        + '<div style="display:flex; gap:10px; flex-wrap:wrap;">'
+        + '<button class="btn btn-primary" style="flex:1; min-width:100px;" onclick="reviewGrade(\'right\')">✅ 答对</button>'
+        + '<button class="btn btn-outline" style="flex:1; min-width:100px; border-color:var(--accent-orange); color:var(--accent-orange);" onclick="reviewGrade(\'fuzzy\')">🔶 模糊</button>'
+        + '<button class="btn btn-accent" style="flex:1; min-width:100px;" onclick="reviewGrade(\'wrong\')">❌ 答错</button>'
         + '</div>'
         + '</div>';
     }
 
-    function reviewAct(isRemembered) {
+    function reviewGrade(g) {
       const item = reviewMode.list[reviewMode.index];
       if (!item) return;
-      handleMemoryReview(reviewMode.type, item.id, isRemembered);
+      reviewMode.score[g] += 1;
+      // 答对/模糊 → 记入「记得」进阶；答错 → 打回重来（复用艾宾浩斯引擎）
+      handleMemoryReview(reviewMode.type, item.id, g !== 'wrong');
       reviewMode.index += 1;
       if (reviewMode.index >= reviewMode.list.length) renderReviewDone();
       else renderReviewQueue();
@@ -4000,153 +3959,27 @@ words: [
 
     function renderReviewDone() {
       const ov = document.getElementById('review-overlay');
-      const done = reviewMode.list.length;
-      ov.querySelector('#review-body').innerHTML =
-        '<div class="review-wrap" style="text-align:center; padding-top:60px;">'
-        + '<div style="font-size:54px;">🎉</div>'
-        + '<div style="font-size:22px; font-weight:800; color:var(--primary-green); margin:14px 0 6px;">今日复习完成！</div>'
-        + '<div style="color:var(--text-sub);">本轮共复习 <b>' + done + '</b> 张，坚持就是胜利～</div>'
-        + '<div style="margin-top:24px;"><button class="btn btn-primary" onclick="exitReview()">返回背诵库</button></div>'
-        + '</div>';
-    }
-
-    function exitReview() {
-      reviewMode = { active: false, type: null, list: [], index: 0 };
-      const ov = document.getElementById('review-overlay');
-      ov.style.display = 'none';
-      document.body.style.overflow = '';
-      renderMemoryLists();
-    }
-
-    // ------------------------------------------------------------------
-    // F5 自测模式：主动回忆 —— 先给题、点「看答案」才揭晓、再给自己打分
-    // ------------------------------------------------------------------
-    let quizMode = { active: false, type: null, list: [], index: 0, revealed: false, score: { right: 0, fuzzy: 0, wrong: 0 } };
-
-    function startQuiz(type) {
-      let getAll, getMem, label;
-      if (type === 'word') { getAll = getAllWords; getMem = w => appData.wordMemory && appData.wordMemory[w.id]; label = '英语课标词汇'; }
-      else if (type === 'card') { getAll = getAllCards; getMem = c => appData.cardMemory && appData.cardMemory[c.id]; label = '通用记忆卡'; }
-      else { getAll = visiblePoetry; getMem = p => appData.poetryMemory && appData.poetryMemory[p.id]; label = '古诗文背诵'; }
-      const queue = buildQuizQueue(getAll, getMem);
-      if (queue.length === 0) {
-        alert('📝 当前册（' + currentVolume() + '）的「' + label + '」暂时没有可自测的内容。\n先去「🚀 开始今日复习」学几张，再来自测巩固吧！');
-        return;
-      }
-      quizMode = { active: true, type, list: queue, index: 0, revealed: false, score: { right: 0, fuzzy: 0, wrong: 0 } };
-      const ov = document.getElementById('quiz-overlay');
-      ov.style.display = 'block';
-      document.body.style.overflow = 'hidden';
-      renderQuizCard();
-    }
-
-    function quizPromptText(type) {
-      if (type === 'word') return '凭记忆想一下中文释义，准备好再点「看答案」';
-      if (type === 'card') return '凭记忆想一下答案，准备好再点「看答案」';
-      return '凭记忆默背全文，准备好再点「看答案」';
-    }
-
-    // 返回 {front: 题目 HTML, back: 答案 HTML}，按类型生成
-    function quizCardHtml(type, item) {
-      if (type === 'word') {
-        return {
-          front: '<div class="word-spelling">' + item.word + '</div><div class="word-phonetic">' + (item.phonetic || '') + '</div>',
-          back: '<div class="word-meaning">' + item.meaning + '</div><div class="word-example">' + (item.example || '') + '</div>'
-        };
-      } else if (type === 'card') {
-        const backHtml = (item.back || '').split('\n').map(l => '<div>' + l + '</div>').join('');
-        return {
-          front: '<div class="word-spelling">' + item.front + '</div>',
-          back: '<div class="word-meaning">' + backHtml + '</div>'
-        };
-      } else {
-        const lines = (item.content || '').split('\n').map(l => '<div class="poetry-line" style="cursor:default;">' + l + '</div>').join('');
-        return {
-          front: '<div class="word-spelling" style="font-size:26px;">' + item.title + '</div><div class="word-phonetic">' + item.author + '</div>',
-          back: '<div style="font-size:18px; font-weight:700; margin-bottom:10px;">' + item.title + ' · ' + item.author + '</div><div style="font-size:17px; line-height:2;">' + lines + '</div>'
-        };
-      }
-    }
-
-    function renderQuizCard() {
-      const ov = document.getElementById('quiz-overlay');
-      if (!quizMode.active) return;
-      const item = quizMode.list[quizMode.index];
-      if (!item) { renderQuizDone(); return; }
-      const type = quizMode.type;
-      const total = quizMode.list.length;
-      const pos = quizMode.index + 1;
-      const pct = Math.round((quizMode.index / total) * 100);
-      const h = quizCardHtml(type, item);
-      const typeLabel = { word: '英语课标词汇', card: '通用记忆卡', poetry: '古诗文背诵' }[type];
-
-      let html = '<div class="review-wrap">'
-        + '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">'
-        + '<span style="font-weight:700; color:var(--primary-green); font-size:16px;">📝 自测模式 · ' + typeLabel + '</span>'
-        + '<button class="btn btn-outline btn-sm" onclick="exitQuiz()">✕ 退出</button>'
-        + '</div>'
-        + '<div class="review-progress-bar"><div class="review-progress-fill" style="width:' + pct + '%;"></div></div>'
-        + '<div style="font-size:13px; color:var(--text-sub); margin-bottom:6px;">进度 ' + pos + ' / ' + total + ' · ' + quizPromptText(type) + '</div>'
-        + '<div class="quiz-prompt">' + h.front + '</div>';
-
-      if (!quizMode.revealed) {
-        html += '<div style="text-align:center; margin:22px 0;">'
-          + '<button class="btn btn-primary" style="min-width:200px; font-size:17px;" onclick="quizReveal()">👀 看答案</button>'
-          + '<div style="font-size:12px; color:var(--text-sub); margin-top:10px;">先凭记忆想一想，再核对答案</div>'
-          + '</div>';
-      } else {
-        html += '<div class="quiz-answer">' + h.back + '</div>'
-          + '<div style="font-size:13px; color:var(--text-sub); margin:12px 0 6px;">你刚才是？给自己打个分 👇</div>'
-          + '<div style="display:flex; gap:10px; flex-wrap:wrap;">'
-          + '<button class="btn btn-primary quiz-grade-btn" style="flex:1; min-width:100px;" onclick="quizGrade(\'right\')">✅ 答对了</button>'
-          + '<button class="btn btn-outline quiz-grade-btn" style="flex:1; min-width:100px; border-color:var(--accent-orange); color:var(--accent-orange);" onclick="quizGrade(\'fuzzy\')">🔶 模糊</button>'
-          + '<button class="btn btn-accent quiz-grade-btn" style="flex:1; min-width:100px;" onclick="quizGrade(\'wrong\')">❌ 答错了</button>'
-          + '</div>';
-      }
-      html += '</div>';
-      ov.querySelector('#quiz-body').innerHTML = html;
-    }
-
-    function quizReveal() {
-      quizMode.revealed = true;
-      renderQuizCard();
-    }
-
-    function quizGrade(g) {
-      const item = quizMode.list[quizMode.index];
-      if (!item) return;
-      quizMode.score[g] += 1;
-      // 答对/模糊 → 记入「记得」进阶；答错 → 打回重来（复用既有艾宾浩斯引擎）
-      handleMemoryReview(quizMode.type, item.id, g !== 'wrong');
-      quizMode.index += 1;
-      quizMode.revealed = false;
-      if (quizMode.index >= quizMode.list.length) renderQuizDone();
-      else renderQuizCard();
-    }
-
-    function renderQuizDone() {
-      const ov = document.getElementById('quiz-overlay');
-      const s = quizMode.score;
+      const s = reviewMode.score;
       const total = s.right + s.fuzzy + s.wrong;
       const rate = total ? Math.round((s.right + s.fuzzy * 0.5) / total * 100) : 0;
-      ov.querySelector('#quiz-body').innerHTML =
+      ov.querySelector('#review-body').innerHTML =
         '<div class="review-wrap" style="text-align:center; padding-top:50px;">'
-        + '<div style="font-size:54px;">📝</div>'
-        + '<div style="font-size:22px; font-weight:800; color:var(--primary-green); margin:14px 0 6px;">自测完成！</div>'
-        + '<div style="color:var(--text-sub);">本轮共自测 <b>' + total + '</b> 张</div>'
+        + '<div style="font-size:54px;">🎉</div>'
+        + '<div style="font-size:22px; font-weight:800; color:var(--primary-green); margin:14px 0 6px;">今日复习完成！</div>'
+        + '<div style="color:var(--text-sub);">本轮共复习 <b>' + total + '</b> 张</div>'
         + '<div style="display:flex; gap:12px; justify-content:center; margin:20px 0; flex-wrap:wrap;">'
         + '<div class="stat-card" style="min-width:86px;"><div class="stat-value" style="color:var(--status-green);">' + s.right + '</div><div class="u-muted" style="font-size:12px;">答对</div></div>'
         + '<div class="stat-card" style="min-width:86px;"><div class="stat-value" style="color:var(--accent-orange);">' + s.fuzzy + '</div><div class="u-muted" style="font-size:12px;">模糊</div></div>'
         + '<div class="stat-card" style="min-width:86px;"><div class="stat-value" style="color:var(--status-red);">' + s.wrong + '</div><div class="u-muted" style="font-size:12px;">答错</div></div>'
         + '</div>'
         + '<div style="color:var(--text-sub); margin-bottom:20px;">有效掌握率（模糊计半对）：<b>' + rate + '%</b></div>'
-        + '<button class="btn btn-primary" onclick="exitQuiz()">返回背诵库</button>'
+        + '<div style="margin-top:8px;"><button class="btn btn-primary" onclick="exitReview()">返回背诵库</button></div>'
         + '</div>';
     }
 
-    function exitQuiz() {
-      quizMode = { active: false, type: null, list: [], index: 0, revealed: false, score: { right: 0, fuzzy: 0, wrong: 0 } };
-      const ov = document.getElementById('quiz-overlay');
+    function exitReview() {
+      reviewMode = { active: false, type: null, list: [], index: 0, score: { right: 0, fuzzy: 0, wrong: 0 } };
+      const ov = document.getElementById('review-overlay');
       ov.style.display = 'none';
       document.body.style.overflow = '';
       renderMemoryLists();
@@ -5435,10 +5268,6 @@ words: [
   <!-- F3: 今日复习队列浮层 -->
   <div id="review-overlay">
     <div id="review-body"></div>
-  </div>
-
-  <div id="quiz-overlay">
-    <div id="quiz-body"></div>
   </div>
 
 </body>
