@@ -756,6 +756,76 @@
       font-weight: 800;
     }
 
+    /* 复习视角（默认视图）看板 */
+    #mem-review-board { margin-top: 8px; }
+    .review-board-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: linear-gradient(135deg, #eafaf0, #f3fbf6);
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: var(--radius, 14px);
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .review-board-title { font-size: 18px; font-weight: 800; color: var(--text-main, #1f2937); }
+    .review-board-sub { font-size: 12px; color: var(--text-sub, #6b7280); margin-top: 2px; }
+    .review-start-btn {
+      min-height: 48px;
+      padding: 12px 22px;
+      font-size: 16px;
+      font-weight: 800;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+    .review-list { display: flex; flex-direction: column; gap: 8px; }
+    .review-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .review-idx {
+      flex: 0 0 auto;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--primary-green, #16a34a);
+      color: #fff;
+      font-size: 13px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .review-row-main { flex: 1 1 auto; min-width: 0; }
+    .review-row-title { font-size: 15px; font-weight: 700; color: var(--text-main, #1f2937); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .review-row-meta { font-size: 12px; color: var(--text-sub, #6b7280); margin-top: 2px; }
+    .tag-due {
+      flex: 0 0 auto;
+      font-size: 12px; font-weight: 700;
+      color: var(--status-red, #dc2626);
+      background: #fde8e8;
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .tag-new {
+      flex: 0 0 auto;
+      font-size: 12px; font-weight: 700;
+      color: var(--primary-green, #16a34a);
+      background: #e7f7ee;
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .review-empty {
+      text-align: center;
+      color: var(--text-sub, #6b7280);
+      background: #fff;
+      border: 1px dashed var(--border-color, #e5e7eb);
+      border-radius: 12px;
+      padding: 28px 20px;
+      line-height: 1.7;
+    }
+
     .memory-tab-btn {
       font-size: 16px;
       font-weight: 700;
@@ -1367,10 +1437,10 @@
           <!-- 工具栏：左侧模式开关 + 搜索/筛选，右侧操作 -->
           <div class="mem-toolbar">
             <div class="mem-mode-toggle">
-              <button class="mem-mode-btn active" id="modeBrowse" onclick="setMemMode('browse')">浏览</button>
-              <button class="mem-mode-btn" id="modeReview" onclick="setMemMode('review')">复习 <span id="reviewCount-active">0</span></button>
+              <button class="mem-mode-btn active" id="modeReview" onclick="setMemMode('review')">复习 <span id="reviewCount-active">0</span></button>
+              <button class="mem-mode-btn" id="modeBrowse" onclick="setMemMode('browse')">浏览</button>
             </div>
-            <div class="mem-filter-bar">
+            <div class="mem-filter-bar" id="mem-filter-bar">
               <input id="memSearchInput" type="search" placeholder="搜索（词 / 释义 / 作者 / 内容…）" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:16px;" oninput="onMemSearch(this.value)">
               <select id="memFilterSelect" class="form-control" style="max-width:150px;" onchange="onMemFilter(this.value)">
                 <option value="focus" selected>今日优先</option>
@@ -1381,10 +1451,13 @@
               </select>
               <span id="memResultCount" style="font-size:12px; color:var(--text-sub);"></span>
             </div>
-            <div class="mem-actions">
+            <div class="mem-actions" id="mem-actions">
               <button class="btn btn-outline btn-sm" onclick="openAddCurrent()" title="新增当前子库的条目">＋ 新增</button>
             </div>
           </div>
+
+          <!-- 复习视角（默认）：今日复习清单 + 开始按钮 -->
+          <div id="mem-review-board"></div>
 
           <!-- 古诗文区 -->
           <div id="memory-sub-poetry">
@@ -2882,7 +2955,8 @@ words: [
     let currentErrorFilter = "all";
     let currentErrorReasonFilter = "all";
     let currentMemorySubTab = "poetry";
-    let memMode = "browse"; // "browse" | "review"
+    let memMode = "review"; // "browse" | "review"（默认复习视角）
+    let memModeBeforeReview = "review"; // 复习浮层关闭后回到的视图
     let allWordIndex = 0;
     let allCardIndex = 0;
 
@@ -2915,6 +2989,7 @@ words: [
         'error': '错题归因与四轮消灭本'
       };
       document.getElementById('page-title').innerText = titleMap[tabName];
+      if (tabName === 'memory') renderMemoryLists(); // 进入记忆 tab 即渲染默认复习看板
       updateDateSubtitle();
     }
 
@@ -3521,36 +3596,37 @@ words: [
     function switchMemorySubTab(sub, btnEl) {
       currentMemorySubTab = sub;
       document.querySelectorAll('.memory-tab-btn').forEach(b => b.classList.remove('active'));
-      btnEl.classList.add('active');
-
-      const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'block' : 'none'; };
-      show('memory-sub-poetry', sub === 'poetry');
-      show('memory-sub-word', sub === 'word');
-      show('memory-sub-card', sub === 'card');
-      if (sub === 'card') renderCardView();
-      updateReviewBadges();
+      if (btnEl) btnEl.classList.add('active');
+      applyMemModeVisibility();
+      renderMemoryLists();
     }
 
-    // 背诵与记忆 tab：浏览 / 复习 双模式切换
-    // 浏览 = 纯管理（增删改、朗读）；复习 = 启动专注流浮层（去除卡片内嵌评级按钮，避免与管理态混淆）
+    // 背诵与记忆 tab：浏览 / 复习 双模式
+    // 默认 = 复习视角（今日复习清单 + 开始按钮）；浏览 = 次级，纯管理（增删改、搜索筛选）
+    // 两者都是「视图」，彻底消除「按钮 vs 视图」的错位感
+    function applyMemModeVisibility() {
+      const review = memMode === 'review';
+      const r = document.getElementById('modeReview');
+      const b = document.getElementById('modeBrowse');
+      if (r) r.classList.toggle('active', review);
+      if (b) b.classList.toggle('active', !review);
+      const fb = document.getElementById('mem-filter-bar');
+      const ac = document.getElementById('mem-actions');
+      if (fb) fb.style.display = review ? 'none' : '';
+      if (ac) ac.style.display = review ? 'none' : '';
+      const board = document.getElementById('mem-review-board');
+      if (board) board.style.display = review ? 'block' : 'none';
+      const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'block' : 'none'; };
+      show('memory-sub-poetry', !review && currentMemorySubTab === 'poetry');
+      show('memory-sub-word', !review && currentMemorySubTab === 'word');
+      show('memory-sub-card', !review && currentMemorySubTab === 'card');
+    }
+
     function setMemMode(mode) {
       memMode = mode;
-      const b = document.getElementById('modeBrowse');
-      const r = document.getElementById('modeReview');
-      if (b) b.classList.toggle('active', mode === 'browse');
-      if (r) r.classList.toggle('active', mode === 'review');
-      if (mode === 'review') {
-        startReview(currentMemorySubTab);
-        // 若队列为空，startReview 会弹窗并返回（未真正进入浮层），此时回退到浏览态
-        if (!reviewMode.active) {
-          memMode = 'browse';
-          if (b) b.classList.add('active');
-          if (r) r.classList.remove('active');
-          renderMemoryLists();
-        }
-      } else {
-        renderMemoryLists();
-      }
+      applyMemModeVisibility();
+      updateReviewBadges();
+      renderMemoryLists();
     }
 
     // 头部「＋ 新增」按钮：按当前子库打开对应新增弹窗
@@ -3600,12 +3676,69 @@ words: [
         c => (c.front + ' ' + (c.back || '') + ' ' + (c.subject || '')));
     }
     function renderMemoryLists(){
-      renderPoetryList(); renderWordView(); renderCardView();
-      const total = filteredPoetry().length + filteredWords().length + filteredCards().length;
-      const el = document.getElementById('memResultCount');
-      if (el) el.innerText = memFilter === 'focus' ? `今日优先 · 共 ${total} 条` : (memSearch || memFilter !== 'all') ? `匹配 ${total} 条` : '';
+      applyMemModeVisibility();
+      if (memMode === 'review') {
+        renderReviewBoard();
+      } else {
+        renderPoetryList(); renderWordView(); renderCardView();
+        const total = filteredPoetry().length + filteredWords().length + filteredCards().length;
+        const el = document.getElementById('memResultCount');
+        if (el) el.innerText = memFilter === 'focus' ? `今日优先 · 共 ${total} 条` : (memSearch || memFilter !== 'all') ? `匹配 ${total} 条` : '';
+      }
       updateReviewBadges();
       renderMemOverview();
+    }
+
+    // 复习视角（默认视图）：今日复习清单 + 开始按钮
+    function renderReviewBoard() {
+      const board = document.getElementById('mem-review-board');
+      if (!board) return;
+      let getAll, getMem, label;
+      if (currentMemorySubTab === 'word') { getAll = getAllWords; getMem = w => appData.wordMemory && appData.wordMemory[w.id]; label = '英语课标词汇'; }
+      else if (currentMemorySubTab === 'card') { getAll = getAllCards; getMem = c => appData.cardMemory && appData.cardMemory[c.id]; label = '通用记忆卡'; }
+      else { getAll = visiblePoetry; getMem = p => appData.poetryMemory && appData.poetryMemory[p.id]; label = '古诗文背诵'; }
+
+      const queue = buildReviewQueue(getAll, getMem);
+      const n = queue.length;
+      const today = getTodayDateStr();
+
+      let html = '';
+      html += '<div class="review-board-head">';
+      html += '  <div><div class="review-board-title">今日复习 · ' + label + '</div>';
+      html += '  <div class="review-board-sub">共 ' + n + ' 条待背' + (n > 0 ? '（到期复习 + 今日可学）' : '') + '</div></div>';
+      html += '  <button class="btn btn-primary review-start-btn" onclick="startReview(\'' + currentMemorySubTab + '\')"' + (n === 0 ? ' disabled style="opacity:.5;cursor:not-allowed;"' : '') + '>🚀 开始今日复习 (' + n + ')</button>';
+      html += '</div>';
+
+      if (n === 0) {
+        html += '<div class="review-empty">🎉 当前册（' + currentVolume() + '）的「' + label + '」今天没有要复习的。<br>去「浏览」添加或导入条目吧！<button class="btn btn-outline btn-sm" onclick="setMemMode(\'browse\')" style="margin-top:12px;">浏览全部库</button></div>';
+      } else {
+        html += '<div class="review-list">';
+        queue.forEach((item, i) => {
+          const mem = getMem(item);
+          const isDue = mem && !mem.graduated && mem.nextReview <= today;
+          const badge = isDue ? '<span class="tag-due">到期复习</span>' : '<span class="tag-new">今日可学</span>';
+          const title = currentMemorySubTab === 'word' ? item.word
+                      : currentMemorySubTab === 'card' ? item.front
+                      : (item.title + ' · ' + item.author);
+          const meta = isDue
+            ? ('第 ' + (mem.stage + 1) + ' 轮 · 下次 ' + mem.nextReview)
+            : (item.scheduledStart ? ('排期 ' + formatMonthDay(item.scheduledStart)) : '新卡片');
+          html += '<div class="review-row">'
+               + '<span class="review-idx">' + (i + 1) + '</span>'
+               + '<div class="review-row-main"><div class="review-row-title">' + escapeHtml(title) + '</div>'
+               + '<div class="review-row-meta">' + escapeHtml(meta) + '</div></div>'
+               + badge + '</div>';
+        });
+        html += '</div>';
+      }
+      board.innerHTML = html;
+    }
+
+    // 轻量 HTML 转义（复习清单里用户自定义内容可能含 < > & "）
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     // 古诗词背诵渲染
@@ -4046,13 +4179,9 @@ words: [
       const ov = document.getElementById('review-overlay');
       ov.style.display = 'none';
       document.body.style.overflow = '';
-      // 复习浮层关闭后，回到浏览模式并同步切换器 UI
-      memMode = 'browse';
-      const b = document.getElementById('modeBrowse');
-      const r = document.getElementById('modeReview');
-      if (b) b.classList.remove('active');
-      if (r) r.classList.remove('active');
-      if (b) b.classList.add('active');
+      // 复习浮层关闭后，回到复习看板（默认视角），同步切换器 UI
+      memMode = memModeBeforeReview || 'review';
+      applyMemModeVisibility();
       renderMemoryLists();
     }
 
