@@ -26,12 +26,27 @@ function validCode(code) {
   return typeof code === 'string' && code.length >= 4 && code.length <= 64;
 }
 
+// KV 未绑定时的清晰报错（避免返回裸 500，并把当前可用绑定名透出便于核对）
+function kvGuard(env) {
+  const kv = env.studybench_sync;
+  if (kv) return { kv };
+  return {
+    err: jsonResponse({
+      error: 'kv_not_bound',
+      hint: 'Cloudflare Pages 后台未找到名为 studybench_sync 的 KV 绑定。请前往 项目设置 → Functions → KV namespace bindings，添加一个 Variable name 为 studybench_sync 的绑定。',
+      availableBindings: Object.keys(env)
+    }, 503)
+  };
+}
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code') || '';
   if (!validCode(code)) return jsonResponse({ error: 'invalid code' }, 400);
+  const g = kvGuard(env);
+  if (g.err) return g.err;
   const key = await sha256Hex(code);
-  const raw = await env.studybench_sync.get(key);
+  const raw = await g.kv.get(key);
   if (!raw) return jsonResponse({ error: 'not found' }, 404);
   return new Response(raw, {
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
@@ -52,9 +67,10 @@ export async function onRequestPost({ request, env }) {
   const data = body.data;
   if (!data || typeof data !== 'object') return jsonResponse({ error: 'invalid data' }, 400);
 
+  const g = kvGuard(env);
+  if (g.err) return g.err;
   const key = await sha256Hex(code);
-  const kv = env.studybench_sync;
-  const existing = await kv.get(key);
+  const existing = await g.kv.get(key);
   if (existing) {
     try {
       const ex = JSON.parse(existing);
@@ -63,6 +79,6 @@ export async function onRequestPost({ request, env }) {
       }
     } catch { /* 损坏数据则直接覆盖 */ }
   }
-  await kv.put(key, JSON.stringify({ lm, data }));
+  await g.kv.put(key, JSON.stringify({ lm, data }));
   return jsonResponse({ ok: true, lm }, 200);
 }

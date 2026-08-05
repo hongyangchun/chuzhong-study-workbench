@@ -34,12 +34,26 @@ async function makeKey(code, id) {
   return 'img:' + (await sha256Hex(code)) + ':' + id;
 }
 
+function kvGuard(env) {
+  const kv = env.studybench_sync;
+  if (kv) return { kv };
+  return {
+    err: jsonResponse({
+      error: 'kv_not_bound',
+      hint: 'Cloudflare Pages 后台未找到名为 studybench_sync 的 KV 绑定。请前往 项目设置 → Functions → KV namespace bindings，添加一个 Variable name 为 studybench_sync 的绑定。',
+      availableBindings: Object.keys(env)
+    }, 503)
+  };
+}
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code') || '';
   const id = url.searchParams.get('id') || '';
   if (!validCode(code) || !validId(id)) return jsonResponse({ error: 'invalid params' }, 400);
-  const raw = await env.studybench_sync.get(await makeKey(code, id));
+  const g = kvGuard(env);
+  if (g.err) return g.err;
+  const raw = await g.kv.get(await makeKey(code, id));
   if (!raw) return jsonResponse({ error: 'not found' }, 404);
   return jsonResponse({ data: raw }, 200);
 }
@@ -52,7 +66,9 @@ export async function onRequestPost({ request, env }) {
   const data = (body.data || '').toString();
   if (!validCode(code) || !validId(id)) return jsonResponse({ error: 'invalid params' }, 400);
   if (!data || data.length > 3000000) return jsonResponse({ error: 'invalid data' }, 400);
-  await env.studybench_sync.put(await makeKey(code, id), data);
+  const g = kvGuard(env);
+  if (g.err) return g.err;
+  await g.kv.put(await makeKey(code, id), data);
   return jsonResponse({ ok: true }, 200);
 }
 
@@ -61,6 +77,8 @@ export async function onRequestDelete({ request, env }) {
   const code = url.searchParams.get('code') || '';
   const id = url.searchParams.get('id') || '';
   if (!validCode(code) || !validId(id)) return jsonResponse({ error: 'invalid params' }, 400);
-  await env.studybench_sync.delete(await makeKey(code, id));
+  const g = kvGuard(env);
+  if (g.err) return g.err;
+  await g.kv.delete(await makeKey(code, id));
   return jsonResponse({ ok: true }, 200);
 }

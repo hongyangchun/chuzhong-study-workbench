@@ -1375,6 +1375,9 @@
             </div>
             <div class="form-group">
               <label class="form-label">题目截图（可选，存云端 KV）</label>
+              <p style="margin:0 0 8px; font-size:12px; color:var(--accent-orange); line-height:1.5;">
+                💡 截图存到云端，需先在「系统设置 → 云同步」设置并保存同步码；离线/未联网时看不到图。
+              </p>
               <input type="file" id="err-images" class="form-control" accept="image/*" multiple
                      onchange="handleErrorImageSelect(event)" style="font-size:16px; padding:8px;">
               <div id="err-image-preview" class="image-preview-row"></div>
@@ -3334,6 +3337,18 @@
     const SYNC_CODE_KEY = 'wb_sync_code';
     const SYNC_AUTO_KEY = 'wb_sync_auto';
 
+    // 把非 2xx 响应解析成可读错误文案（503 kv_not_bound 时给出后台配置指引）
+    async function resErrorText(res, prefix) {
+      try {
+        const j = await res.json();
+        if (j && j.error === 'kv_not_bound') {
+          return (prefix || '操作失败') + '：云端 KV 未绑定。请到 Cloudflare Pages 后台「项目设置 → Functions → KV namespace bindings」添加一个 Variable name 为 studybench_sync 的绑定，然后重新部署。当前可用绑定：' + JSON.stringify(j.availableBindings || []);
+        }
+        if (j && j.error) return (prefix || '操作失败') + '：' + j.error;
+      } catch (e) {}
+      return (prefix || '操作失败') + '：HTTP ' + res.status;
+    }
+
     function getSyncCode() {
       return localStorage.getItem(SYNC_CODE_KEY) || '';
     }
@@ -3379,7 +3394,7 @@
           alert('云端已有更新的数据，请先点“从云端拉取”。');
           return;
         }
-        if (!res.ok) { setSyncStatus('推送失败：' + res.status); alert('推送失败：' + res.status); return; }
+        if (!res.ok) { const msg = await resErrorText(res, '推送失败'); setSyncStatus(msg); alert(msg); return; }
         setSyncStatus('已推送到云端 ✓');
       } catch (e) {
         setSyncStatus('推送出错：' + e.message);
@@ -3399,7 +3414,7 @@
           alert('云端还没有这份数据，请先点“推送到云端”。');
           return;
         }
-        if (!res.ok) { setSyncStatus('拉取失败：' + res.status); return; }
+        if (!res.ok) { const msg = await resErrorText(res, '拉取失败'); setSyncStatus(msg); return; }
         const remote = await res.json();
         const localLM = appData.syncLM || 0;
         if (remote.lm > localLM) {
@@ -3477,7 +3492,7 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ code, id, data: base64 })
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) throw new Error(await resErrorText(res, '图片上传失败'));
       return id;
     }
 
@@ -3488,7 +3503,7 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ code, id, data })
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) throw new Error(await resErrorText(res, '图片上传失败'));
     }
 
     async function deleteErrorImage(id) {
