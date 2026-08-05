@@ -345,3 +345,27 @@ F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ 
 
 ## 进度
 导航收敛为 4 个 tab（今日 / 作业 / 记忆 / 错题）。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
+
+---
+
+# 记忆 tab：浏览 / 复习双模式切换
+
+## 背景
+用户质疑：「卡片管理和卡片复习放在同一个页面，是不是有更好的 UI 设计方式？」诊断根因：每张卡内嵌「记住啦 / 忘记了」2 档评级钮，与顶部复习浮层功能重复，且"管理"与"复习"两种心智混在同一张卡片上。经 AskUserQuestion，用户选定「浏览 / 复习双模式」——两种心智彻底隔离。
+
+## 改动（commit `f41dcbc`，已 push，Cloudflare 上线）
+- 记忆 tab 工具栏头部新增**分段控件**「浏览 / 复习」（`#modeBrowse` / `#modeReview`）；`reviewCount-active` 计数 span 移入「复习」钮内；`.mem-actions` 仅保留「＋ 新增」。
+- 新增 `let memMode`（默认 `browse`）+ `setMemMode(mode)`：
+  - `browse` → `renderMemoryLists()`，纯管理态（朗读 / 编辑 / 删除，翻卡看释义）
+  - `review` → `startReview(currentMemorySubTab)` 启动全屏专注浮层
+- 移除三处卡片内嵌评级钮：古诗文 `renderPoetryList`、词汇 `renderWordView`、记忆卡 `renderCardView`（保留翻卡 + 上一个/下一个 + 编辑/删除，行内加「切到『复习』模式开始记忆打卡 →」引导）。
+- `exitReview()` 关闭浮层后回退 `memMode='browse'` 并同步切换器 UI；`setMemMode('review')` 在队列为空（`!reviewMode.active`）时回退浏览态，**避免切换器卡死在复习态**。
+- CSS 新增 `.mem-mode-toggle / .mem-mode-btn`（分段控件，active = 主绿底色）。
+
+## 验证
+- 内联脚本 `node --check` 通过（205601 字符）
+- grep：`handleMemoryReview('poetry'/'word'/'card')` 内嵌调用 = 0、`function setMemMode` = 1、`let memMode` = 1、`id="reviewCount-active"` = 1、`modeBrowse/modeReview` = 2
+- 线上 curl 经 `sleep 45` 多 pass 稳定：`mem-mode-toggle=2 / setMemMode=1 / inline-grade=0`
+
+## 进度
+记忆 tab = 浏览（管理）/ 复习（专注流）两种心智彻底分离，单一复习入口 = 模式切换钮。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
