@@ -209,7 +209,9 @@ F4 错峰排期后，「待开始」筛选项与首页焦点卡标签实际包�
 
 ---
 
-# F5 测验自测：主动回忆 + 打分 + 成绩报告
+# F5 测验自测：主动回忆 + 打分 + 成绩报告  ⚠️ 已废弃并合并（见末尾）
+
+> 该「📝 自测模式」浮层与「一键遮句自测」已于 2026-08-05 合并进「🚀 开始今日复习」单一入口（commit `44d28a1`）。下方记录保留为历史依据，代码已移除。
 
 ## 需求背景
 记忆 tab 已有「🚀 今日复习」（翻卡→标记记得/忘），但缺一个真正检验"记住没"的环节：主动回忆（先想再看）+ 自我评分。F5 补上"自测模式"。
@@ -267,4 +269,35 @@ F4 错峰排期后，「待开始」筛选项与首页焦点卡标签实际包�
 - commit `7d76bab`，已 push，Cloudflare Git 自动部署上线
 
 ## 进度
-F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · F5 自测 ✅ · 记忆 tab 第一刀(结构精简) ✅ · 记忆 tab 第二刀(默认聚焦视图) ✅。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
+F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ · 记忆 tab 第二刀(默认聚焦视图) ✅。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
+
+---
+
+# 复习原理区块移除 + 记忆 tab 三按钮合并
+
+## 背景
+用户实测反馈：(1) 记忆 tab「复习原理」折叠块价值低、占位置；(2) 「🚀 开始今日复习 / 📝 自测模式 / 一键遮句自测」三个学习入口功能重叠、难以区分。经 AskUserQuestion 确认：删原理块、三按钮合并为一个。
+
+## 改动 1：移除复习原理（commit `07c1972`）
+- 删除记忆 tab 底部 `<details class="mem-principle">` 折叠块；`renderAll` 内 `renderEbbinghausChart()` 调用一并移除。
+- `renderEbbinghausChart` 函数与 `.mem-principle` CSS 保留为无引用死代码（函数有 `if(!c) return` 守卫，零报错；保留便于将来恢复，符合"保留已删功能死代码降风险"惯例）。
+
+## 改动 2：三按钮合并为单一入口（commit `44d28a1`）
+- **仅保留「🚀 开始今日复习」一个学习入口**，删除「📝 自测模式」与「一键遮句自测」。
+- 删除清单：
+  - F5 自测浮层全套 `startQuiz / quizPromptText / quizCardHtml / renderQuizCard / quizReveal / quizGrade / renderQuizDone / exitQuiz` + `let quizMode` + DOM 节点 `#quiz-overlay`；
+  - `buildQuizQueue()` / `quizQueueSize()` + `updateReviewBadges` 内 `quizCount-active` 引用；
+  - 「一键遮句自测」的 `togglePoetryMaskAll / toggleLineMask` + 古诗文区 `.mem-sub-actions` 次级钮 + `poetry-line` 的 `onclick` + 相关 CSS（`.mem-sub-actions` / `.poetry-line.masked` / 全套 `.quiz-*` 死规则保留无害）。
+- 复习浮层升级为**三档自评**：原 2 档（记住/忘记）→ 吸收自测的 答对/模糊/答错。
+  - `reviewMode` 加 `score:{right,fuzzy,wrong}`；按钮 `reviewAct(bool)` → `reviewGrade(g)`；
+  - 答对/模糊 → `handleMemoryReview(type,id,true)` 进阶，答错 → `handleMemoryReview(type,id,false)` 打回；
+  - 完成页 `renderReviewDone` 改为显示 答对/模糊/答错 计数 + **有效掌握率（模糊计半对）**，复用原自测成绩报告样式。
+- 净变更 **+20 / −191**（大幅瘦身）。
+
+## 验证
+- 内联脚本 `node --check` 通过（205,038 字符）
+- grep 确认 `reviewGrade(` = 4（定义 + 3 按钮）、`startQuiz(` = 0、`一键遮句自测` = 0；`#quiz-overlay` DOM 节点 = 0（仅 CSS 死规则）
+- 线上 curl 多 pass：pass 1–2 偶发旧边缘节点（仍见 `startQuiz=2`），pass 3–6 稳定 `reviewGrade=4 / startQuiz=0 / 一键遮句=0`
+
+## 进度
+F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ · 记忆 tab 第二刀(默认聚焦视图) ✅ · 三按钮合并 ✅。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
