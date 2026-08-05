@@ -429,7 +429,7 @@
       gap: 16px;
     }
 
-    /* 模块 1: 作业登记与项目式作业 */
+    /* 模块 1: 作业登记 */
     .homework-controls {
       display: flex;
       justify-content: space-between;
@@ -618,49 +618,6 @@
     .due-tag.pinned-text {
       color: var(--accent-orange);
       font-weight: 700;
-    }
-
-    /* 项目式作业专区 */
-    .project-banner {
-      background: linear-gradient(135deg, var(--primary-green) 0%, #2A6F5A 100%);
-      color: #FFF;
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-
-    .project-card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-      margin-top: 16px;
-    }
-
-    .project-template-card {
-      background: #FFF;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-md);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .project-template-card h4 {
-      color: var(--primary-green);
-      font-size: 16px;
-      margin-bottom: 6px;
-    }
-
-    .project-template-card p {
-      font-size: 13px;
-      color: var(--text-sub);
-      margin-bottom: 12px;
     }
 
     /* 盖章动效 */
@@ -1233,22 +1190,8 @@
         </div>
       </div>
 
-      <!-- TAB 2: 作业登记与项目式作业 -->
+      <!-- TAB 2: 作业登记 -->
       <div id="tab-homework" class="tab-page" style="display:none;">
-        <!-- 项目式作业 PBL 专区入口 -->
-        <div class="project-banner">
-          <div>
-            <h3 style="font-size:20px; font-weight:800; margin-bottom:4px;">🚀 跨学科项目式作业 (PBL)</h3>
-            <p style="font-size:14px; opacity:0.9;">内置 4 个真实初中跨学科探索项目，选择模板自动分解为每日阶段作业。</p>
-          </div>
-          <button class="btn btn-accent" onclick="openProjectModal()">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            启动项目式作业
-          </button>
-        </div>
-
-        <div id="active-projects-container"></div>
-
         <!-- 常规作业控制与新增 -->
         <div class="card">
           <div class="card-title">
@@ -1481,19 +1424,6 @@
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;">保存词汇卡片</button>
       </form>
-    </div>
-  </div>
-
-  <!-- 项目式作业 Modal -->
-  <div id="projectModal" class="modal-backdrop">
-    <div class="modal-box">
-      <div class="modal-title">
-        <span>选择跨学科项目模板</span>
-        <button class="btn btn-outline btn-sm" onclick="closeProjectModal()">✕</button>
-      </div>
-      <div id="project-template-list">
-        <!-- 4 个初中真实项目模板渲染 -->
-      </div>
     </div>
   </div>
 
@@ -1766,78 +1696,6 @@
     }
 
     // ------------------------------------------------------------------
-    // 3. 4 个初中跨学科项目模板 (PBL Templates)
-    // ------------------------------------------------------------------
-    const PROJECT_TEMPLATES = [
-      {
-        id: "water_rocket",
-        title: "🚀 水火箭制作与发射探究",
-        subject: "物理/数学",
-        durationDays: 4,
-        target: "利用废旧塑料瓶制作双级水火箭，探究注水量与反冲射程的关系。",
-        output: "制作出水火箭实体，并提交《气压与射程实验数据报告》及发射视频。",
-        knowledge: "物理牛顿第三定律（反冲运动）、气体压强；数学二次函数轨迹预测。",
-        safety: "必须在空旷操场进行发射实验，打气加压时全员站在 5 米安全线以外。",
-        dailyStages: [
-          { day: 1, text: "收集塑料瓶与打气筒，设计尾翼与箭头配重方案。" },
-          { day: 2, text: "组装水火箭主体，测试打气阀门密封性。" },
-          { day: 3, text: "操场发射实验：测试1/3水量与1/2水量的发射高度与射程。" },
-          { day: 4, text: "整理测量数据，绘制二次函数轨迹图并撰写实验结论报告。" }
-        ]
-      },
-      {
-        id: "flagpole_height",
-        title: "📐 校园旗杆高度几何测量",
-        subject: "数学/物理",
-        durationDays: 3,
-        target: "不攀爬旗杆，仅利用影长与简易测角仪精准计算旗杆高度。",
-        output: "提交《旗杆高度几何测算推导手稿》与现场测量照片。",
-        knowledge: "数学相似三角形性质、解直角三角形；物理光的直线传播。",
-        safety: "测量时注意避开体育课抛掷场地，使用卷尺时佩戴防划手手套。",
-        dailyStages: [
-          { day: 1, text: "制作量角器与重锤结合的简易仰角测角仪，分工测量角色。" },
-          { day: 2, text: "晴天下午同一时刻，测量旗杆影长、同学身高与人影长。" },
-          { day: 3, text: "建立相似三角形比例方程，计算最终旗杆高度并撰写报告。" }
-        ]
-      },
-      {
-        id: "intangible_heritage",
-        title: "🎨 家乡非遗文化手抄报调查",
-        subject: "语文/历史/美术",
-        durationDays: 5,
-        target: "深入调查家乡一项传统非遗技艺（如剪纸、茶艺、泥塑等）。",
-        output: "绘制一张 A3 精美图文手抄报，并在全班进行 3 分钟非遗口头演讲。",
-        knowledge: "语文新闻采访与说明文写作；历史地方志查阅；美术色彩与版面构成。",
-        safety: "外出采访传承人须由家长陪同，注意交通安全。",
-        dailyStages: [
-          { day: 1, text: "确定非遗调查主题，在图书馆或网络收集地方志记录。" },
-          { day: 2, text: "线上或线下采访非遗传承人，整理 3 组核心问答素材。" },
-          { day: 3, text: "设计 A3 版面网格布局，划定插图区、标题区与正文区。" },
-          { day: 4, text: "撰写手抄报文字正文，完成黑线勾边与手绘插图上色。" },
-          { day: 5, text: "试讲演练手抄报核心亮点，准备明日课堂分享。" }
-        ]
-      },
-      {
-        id: "carbon_footprint",
-        title: "🌿 家庭一周碳足迹调查与改善",
-        subject: "生物/地理/道法",
-        durationDays: 7,
-        target: "统计家庭一周用电量、燃气量及出行碳排放，制定低碳减排方案。",
-        output: "提交《家庭碳排放诊断书》与包含 3 条全家签字的低碳公约。",
-        knowledge: "生物温室效应与碳循环；地理资源合理利用；道法绿色生活公民责任。",
-        safety: "查看电表与燃气表时请家长在旁协助，切勿触碰裸露电线。",
-        dailyStages: [
-          { day: 1, text: "记录电表与燃气表初始读数，设计家庭日碳排记录表。" },
-          { day: 2, text: "记录 Day2 全家照明用电时长与空调设定温度。" },
-          { day: 3, text: "记录全家出行交通工具类型及行驶公里数。" },
-          { day: 4, text: "统计厨房垃圾分类重量与塑料袋使用数量。" },
-          { day: 5, text: "记录电暖器/热水器使用频次与水表读数。" },
-          { day: 6, text: "计算一周碳排放总量，对照国家居民人均标准找差距。" },
-          { day: 7, text: "拟定《家庭低碳减排 3 项承诺》，全家共同签字践行。" }
-        ]
-      }
-    ];
-
     // ------------------------------------------------------------------
     // 4. 全局数据存储结构与初始化
     // ------------------------------------------------------------------
@@ -1875,7 +1733,6 @@
           { id: "hw-demo-2", subject: "语文", content: "背诵《观沧海》全文并默写在作业本上", dueDate: tomorrow, completed: false, isDemo: true, vol: '7上', createdAt: today },
           { id: "hw-demo-3", subject: "英语", content: "抄写初一课标词汇 Unit 1 单词并造句", dueDate: tomorrow, completed: true, isDemo: true, vol: '7上', createdAt: today }
         ],
-        projects: [],
         poetryBank: getDefaultPoetryBank(),
         wordBank: getDefaultWordBank(),
         poetryMemory: {
@@ -1904,7 +1761,6 @@
           lastActiveDate: getTodayDateStr()
         },
         homework: [],
-        projects: [],
         currentVolume: '7上',
         poetryBank: {},
         wordBank: {},
@@ -1998,7 +1854,7 @@
 
       const titleMap = {
         'today': '放学复盘与今日任务',
-        'homework': '作业登记与项目式作业',
+        'homework': '作业登记',
         'memory': '古诗文与词汇背诵系统',
         'error': '错题归因与四轮消灭本'
       };
@@ -2009,7 +1865,6 @@
       renderFocusCard();
       renderStatsAndPet();
       renderHomeworkList();
-      renderActiveProjects();
       renderPoetryList();
       renderWordView();
       renderEbbinghausChart();
@@ -2468,108 +2323,6 @@
     }
 
     // ------------------------------------------------------------------
-    // 9. 项目式作业 PBL 逻辑
-    // ------------------------------------------------------------------
-    function openProjectModal() {
-      const container = document.getElementById('project-template-list');
-      container.innerHTML = '';
-
-      PROJECT_TEMPLATES.forEach(tpl => {
-        const div = document.createElement('div');
-        div.className = 'project-template-card';
-        div.style.marginBottom = '16px';
-        div.innerHTML = `
-          <h4>${tpl.title} (${tpl.subject} · 历时 ${tpl.durationDays} 天)</h4>
-          <p><strong>项目目标：</strong>${tpl.target}</p>
-          <p><strong>最终产出：</strong>${tpl.output}</p>
-          <p><strong>核心知识点：</strong>${tpl.knowledge}</p>
-          <p style="color:var(--accent-orange); font-size:12px;"><strong>⚠️ 安全提示：</strong>${tpl.safety}</p>
-          <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:13px; font-weight:700; color:var(--primary-green);">包含 ${tpl.dailyStages.length} 个阶段作业</span>
-            <button class="btn btn-primary btn-sm" onclick="startProjectFromTemplate('${tpl.id}')">启动此项目作业</button>
-          </div>
-        `;
-        container.appendChild(div);
-      });
-
-      document.getElementById('projectModal').classList.add('active');
-    }
-
-    function closeProjectModal() {
-      document.getElementById('projectModal').classList.remove('active');
-    }
-
-    function startProjectFromTemplate(templateId) {
-      const tpl = PROJECT_TEMPLATES.find(t => t.id === templateId);
-      if (!tpl) return;
-
-      const projId = "proj-" + Date.now();
-      const startDate = getTodayDateStr();
-
-      // 自动拆分成每日阶段作业并放入作业库
-      tpl.dailyStages.forEach((st, idx) => {
-        const d = new Date();
-        d.setDate(d.getDate() + idx);
-        const dueStr = d.toISOString().split('T')[0];
-
-        appData.homework.push({
-          id: `hw-pbl-${projId}-${idx}`,
-          subject: tpl.subject.split('/')[0],
-          content: `[项目: ${tpl.title}] Day ${st.day}: ${st.text}`,
-          dueDate: dueStr,
-          completed: false,
-          isProject: true,
-          projectId: projId,
-          createdAt: startDate
-        });
-      });
-
-      appData.projects.push({
-        id: projId,
-        templateId: templateId,
-        title: tpl.title,
-        startDate: startDate,
-        durationDays: tpl.durationDays
-      });
-
-      saveData();
-      closeProjectModal();
-      alert(`🚀 项目《${tpl.title}》启动成功！已自动拆解为 ${tpl.dailyStages.length} 天任务并加入您的作业清单。`);
-    }
-
-    function renderActiveProjects() {
-      const container = document.getElementById('active-projects-container');
-      container.innerHTML = '';
-
-      if (!appData.projects || appData.projects.length === 0) return;
-
-      appData.projects.forEach(p => {
-        // 计算已完成比例
-        const pblHws = appData.homework.filter(h => h.projectId === p.id);
-        const completedCount = pblHws.filter(h => h.completed).length;
-        const total = pblHws.length || 1;
-        const pct = Math.round((completedCount / total) * 100);
-
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.style.background = 'var(--primary-green-light)';
-        card.style.border = '1.5px solid var(--primary-green)';
-        card.innerHTML = `
-          <div class="card-title" style="margin-bottom:8px;">
-            <span>进行中项目：${p.title}</span>
-            <span style="font-size:16px; color:var(--accent-orange);">${pct}% 完成率</span>
-          </div>
-          <div class="exp-bar-bg" style="margin-bottom:12px;">
-            <div class="exp-bar-fill" style="width:${pct}%;"></div>
-          </div>
-          <div style="font-size:13px; color:var(--text-sub);">
-            阶段打卡进度: ${completedCount} / ${total} 天已盖章完成
-          </div>
-        `;
-        container.appendChild(card);
-      });
-    }
-
     // ------------------------------------------------------------------
     // 10. 模块 2: 古诗文朗读、遮句背诵与单词翻卡
     // ------------------------------------------------------------------
