@@ -957,6 +957,9 @@
       pointer-events: auto;
     }
 
+    /* 二级弹窗：从设置弹窗内部唤起时需浮在设置之上，否则会被同层级的设置弹窗盖住 */
+    #editionImportModal { z-index: 995; }
+
     .modal-box {
       background: var(--bg-card);
       border-radius: var(--radius-lg);
@@ -1280,7 +1283,6 @@
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="btn btn-primary btn-sm" onclick="openAddPoetryModal()">+ 新增古诗文</button>
                 <button class="btn btn-outline btn-sm" onclick="togglePoetryMaskAll()">一键遮句自测</button>
-                <button class="btn btn-outline btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button>
               </div>
             </div>
             <div id="poetry-list-container"></div>
@@ -1584,12 +1586,21 @@
         </div>
 
         <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md);">
-          <h4 style="color:var(--accent-orange); margin-bottom:6px;">示例数据 / 背诵库</h4>
-          <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">清除内置的初始演示数据，仅保留您自己登记 / 新增的内容。古诗文与词汇背诵库通过「按教材版本导入」建立，导入后可自由编辑与删除。</p>
+          <h4 style="color:var(--accent-orange); margin-bottom:6px;">背诵库</h4>
+          <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">古诗文与词汇背诵库在这里建立。导入后的内容可在「背诵与记忆」里自由编辑、删除，背诵进度不受影响。</p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="clearOnlyDemoData()">只清除示例数据</button>
-            <button class="btn btn-outline btn-sm" onclick="clearImportedLibrary()">清除已导入教材内容</button>
             <button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button>
+            <button class="btn btn-outline btn-sm" onclick="clearImportedLibrary()">清除已导入教材内容</button>
+          </div>
+          <div id="libraryStatus" style="font-size:12px; color:var(--text-sub); margin-top:10px;"></div>
+        </div>
+
+        <!-- 示例数据区：仅在还存在内置演示数据时显示，清干净后自动隐藏，避免留死按钮 -->
+        <div id="demoDataSection" style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md); display:none;">
+          <h4 style="color:var(--accent-orange); margin-bottom:6px;">示例数据</h4>
+          <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">首次打开时预置的演示作业、错题与记忆卡（<span id="demoDataCount"></span>）。清除后仅保留您自己登记 / 新增的内容。</p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="clearOnlyDemoData()">清除示例数据</button>
           </div>
         </div>
 
@@ -2721,7 +2732,12 @@
           container.appendChild(card);
         });
       } else {
-        container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">当前册（' + currentVolume() + '）还没有古诗文背诵卡。<br>点击上方「📚 按教材版本导入」一键载入统编版教材，或点「+ 新增古诗文」手动添加。</div>';
+        // 空状态才给导入引导：常驻入口统一收在「⚙️ 设置 → 背诵库」，这里只帮新手不迷路
+        container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
+          + '当前册（' + currentVolume() + '）还没有古诗文背诵卡。<br>可一键载入统编版教材，或点上方「+ 新增古诗文」手动添加。'
+          + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
+          + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
+          + '</div>';
       }
     }
 
@@ -2764,7 +2780,12 @@
       if (wc) wc.innerText = allWords.length;
       if (allWordIndex >= allWords.length) allWordIndex = 0;
       if (allWords.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-sub);">暂无单词卡片。</div>`;
+        // 与古诗文区一致：空状态才给导入引导，常驻入口在「⚙️ 设置 → 背诵库」
+        container.innerHTML = '<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">'
+          + '当前册（' + currentVolume() + '）还没有词汇卡片。<br>可一键载入课标核心词，或点上方「+ 新增词汇卡片」手动添加。'
+          + '<div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="openEditionImportModal()">📚 按教材版本导入</button></div>'
+          + '<div style="margin-top:10px; font-size:12px;">以后也可在「⚙️ 设置 → 背诵库」里重新导入</div>'
+          + '</div>';
         return;
       }
 
@@ -3215,7 +3236,31 @@
     function openSettingsModal() {
       loadSyncInputs();
       renderArchiveSection();
+      renderSettingsDataSections();
       document.getElementById('settingsModal').classList.add('active');
+    }
+
+    // 背诵库状态提示 + 示例数据区自动显隐（清干净后不再显示死按钮）
+    function renderSettingsDataSections() {
+      const imported = (appData.userPoetry || []).filter(p => p.isDefault).length
+        + (appData.userWords || []).filter(w => w.isDefault).length;
+      const manual = (appData.userPoetry || []).filter(p => !p.isDefault).length
+        + (appData.userWords || []).filter(w => !w.isDefault).length;
+      const status = document.getElementById('libraryStatus');
+      if (status) {
+        const parts = [];
+        if (imported) parts.push('教材导入 ' + imported + ' 条');
+        if (manual) parts.push('手动新增 ' + manual + ' 条');
+        status.innerText = parts.length ? '当前背诵库：' + parts.join('，') : '当前背诵库为空，点上方按钮导入教材。';
+      }
+
+      const demoCount = (appData.homework || []).filter(h => h.isDemo).length
+        + (appData.errors || []).filter(e => e.isDemo).length
+        + (appData.userCards || []).filter(c => c.isDemo).length;
+      const sec = document.getElementById('demoDataSection');
+      const cnt = document.getElementById('demoDataCount');
+      if (sec) sec.style.display = demoCount > 0 ? 'block' : 'none';
+      if (cnt) cnt.innerText = '当前还剩 ' + demoCount + ' 条';
     }
 
     function closeSettingsModal() {
@@ -3758,7 +3803,8 @@
         saveData();
         alert("✨ 示例数据已清理完毕！您自定义与导入的内容完好保留。");
         renderAll();
-        closeSettingsModal();
+        // 留在设置里并刷新区块：示例数据清空后该区块会自动隐藏
+        renderSettingsDataSections();
       }
     }
 
@@ -3790,7 +3836,8 @@
       saveData();
       alert("✨ 已清除导入的教材内容，可随时重新「按教材版本导入」。");
       renderAll();
-      closeSettingsModal();
+      // 留在设置里，方便紧接着重新导入
+      renderSettingsDataSections();
     }
 
     // ========== 按教材版本导入 ==========
@@ -3876,11 +3923,14 @@
 
       saveData();
       closeEditionImportModal();
+      // 从设置弹窗唤起时一并关掉设置，让用户直接看到导入结果
+      closeSettingsModal();
       const parts = [];
       if (addedP) parts.push(addedP + ' 篇古诗文');
       if (addedW) parts.push(addedW + ' 个课标词汇');
-      alert('✅ 已导入教材库：' + (parts.join('，') || '（空）') + '。\n导入内容已写入背诵库，可自由编辑 / 删除。');
+      alert('✅ 已导入教材库：' + (parts.join('，') || '（空）') + '。\n导入内容已写入背诵库，可在「背诵与记忆」里自由编辑 / 删除。');
       renderAll();
+      switchTab('memory');
     }
 
     // 粘贴 / CSV 导入：每行一条，竖线 | 分隔字段，写入当前册「我的」库
