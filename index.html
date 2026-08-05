@@ -27,6 +27,7 @@
       --radius-md: 14px;
       --radius-lg: 20px;
       --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --grad-growth: linear-gradient(135deg, #f0f7f4, #e8f1ec);
     }
 
     * {
@@ -433,6 +434,18 @@
       grid-template-columns: repeat(4, 1fr);
       gap: 16px;
     }
+
+    /* ===== 设计令牌补充 (D1) & 通用工具类 (D2) & 卡片规范 (D3) ===== */
+    .growth-hero { background: var(--grad-growth); }
+    .u-row { display:flex; align-items:center; gap:10px; }
+    .u-between { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .u-muted { color: var(--text-sub); font-size:12px; }
+    .u-mt { margin-top:16px; }
+    .c-orange { color: var(--accent-orange); }
+    .c-green { color: var(--primary-green); }
+    .c-status { color: var(--status-green); }
+    .stat-card { background: var(--bg-paper); padding: 12px; border-radius: var(--radius-sm); }
+    .stat-value { font-size: 24px; font-weight: 800; margin-top: 2px; }
 
     /* 模块 1: 作业登记 */
     .homework-controls {
@@ -1108,7 +1121,7 @@
       <ul class="nav-list">
         <li class="nav-item active" onclick="switchTab('today')">
           <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3L2 12h3v8z"/></svg>
-          今日与成就
+          今日
         </li>
         <li class="nav-item" onclick="switchTab('homework')">
           <svg viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1s-1-.45-1-1s.45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
@@ -1124,6 +1137,10 @@
           <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
           错题本
           <span id="badge-err" class="nav-badge">0</span>
+        </li>
+        <li class="nav-item" onclick="switchTab('growth')">
+          <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          我的成长
         </li>
       </ul>
 
@@ -1143,6 +1160,7 @@
         <li class="top-nav-item" onclick="switchTab('homework')">作业</li>
         <li class="top-nav-item" onclick="switchTab('memory')">记忆</li>
         <li class="top-nav-item" onclick="switchTab('error')">错题</li>
+        <li class="top-nav-item" onclick="switchTab('growth')">成长</li>
       </ul>
       <button class="btn btn-outline btn-sm" onclick="openSettingsModal()">设置</button>
     </div>
@@ -1160,57 +1178,66 @@
         </div>
       </div>
 
-      <!-- “今天要处理”焦点看板（置顶区，仅在今日页显示） -->
-      <section id="today-focus-section" class="today-focus-card">
-        <div class="today-focus-header">
-          <div class="today-focus-title">
-            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-            今天要处理 (急需复盘)
-          </div>
-        </div>
-        <div id="today-focus-list" class="focus-list">
-          <!-- 动态加载今天到期的作业、记忆、错题 -->
-        </div>
-      </section>
-
-      <!-- TAB 1: 今日与我的成就 -->
+      <!-- TAB 1: 今日 -->
       <div id="tab-today" class="tab-page">
-        <div class="grid-2">
-          <!-- 小芽兽“豆豆”陪伴与等级 -->
-          <div class="pet-card">
-            <div class="pet-svg-container" id="pet-svg-wrapper">
-              <!-- 动态生成 SVG 豆豆 -->
+        <!-- “今天要处理”焦点看板（今日页核心） -->
+        <section id="today-focus-section" class="today-focus-card">
+          <div class="today-focus-header">
+            <div class="today-focus-title">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+              今天要处理 (急需复盘)
             </div>
-            <div id="pet-name" class="pet-name">小芽兽“豆豆”</div>
-            <div id="pet-stage" class="pet-stage">Lv.3 嫩芽期 · 正在快快成长</div>
-            <div class="exp-bar-bg">
-              <div id="exp-fill" class="exp-bar-fill"></div>
-            </div>
-            <div style="font-size:13px; color:var(--text-sub);" id="exp-text">经验值: 320 / 500</div>
           </div>
+          <div id="today-focus-list" class="focus-list">
+            <!-- 动态加载今天到期的作业、记忆、错题 -->
+          </div>
+        </section>
+      </div>
 
-          <!-- 核心战报与指标 -->
-          <div class="card">
-            <div class="card-title">
-              <span>四大学习指标</span>
-              <button class="btn btn-primary btn-sm" onclick="generateWeeklyPoster()">生成本周战报 PNG</button>
+      <!-- TAB 5: 我的成长（豆豆 / 等级 / 指标，从「今日」独立出来） -->
+      <div id="tab-growth" class="tab-page" style="display:none;">
+        <div class="card growth-hero">
+          <div class="u-between u-wrap" style="margin-bottom:4px;">
+            <span class="card-title" style="margin-bottom:0;">🌱 我的成长</span>
+            <span class="u-muted">等级与成就，积少成多</span>
+          </div>
+          <div class="grid-2" style="margin-top:14px;">
+            <!-- 小芽兽“豆豆”陪伴与等级 -->
+            <div class="pet-card">
+              <div class="pet-svg-container" id="pet-svg-wrapper">
+                <!-- 动态生成 SVG 豆豆 -->
+              </div>
+              <div id="pet-name" class="pet-name">小芽兽“豆豆”</div>
+              <div id="pet-stage" class="pet-stage">Lv.3 嫩芽期 · 正在快快成长</div>
+              <div class="exp-bar-bg">
+                <div id="exp-fill" class="exp-bar-fill"></div>
+              </div>
+              <div class="u-muted" id="exp-text">经验值: 320 / 500</div>
             </div>
-            <div class="grid-2" style="gap:12px;">
-              <div style="background:var(--bg-paper); padding:12px; border-radius:var(--radius-sm);">
-                <div style="font-size:12px; color:var(--text-sub);">连续打卡天数</div>
-                <div style="font-size:24px; font-weight:800; color:var(--accent-orange);" id="stat-streak">5 天</div>
+
+            <!-- 核心战报与指标 -->
+            <div class="card" style="margin-bottom:0;">
+              <div class="u-between u-wrap">
+                <span class="card-title" style="margin-bottom:0;">四大学习指标</span>
+                <button class="btn btn-primary btn-sm" onclick="generateWeeklyPoster()">生成本周战报 PNG</button>
               </div>
-              <div style="background:var(--bg-paper); padding:12px; border-radius:var(--radius-sm);">
-                <div style="font-size:12px; color:var(--text-sub);">古诗文记忆毕业率</div>
-                <div style="font-size:24px; font-weight:800; color:var(--primary-green);" id="stat-poetry">12.5%</div>
-              </div>
-              <div style="background:var(--bg-paper); padding:12px; border-radius:var(--radius-sm);">
-                <div style="font-size:12px; color:var(--text-sub);">英语词汇毕业率</div>
-                <div style="font-size:24px; font-weight:800; color:var(--primary-green);" id="stat-words">20.8%</div>
-              </div>
-              <div style="background:var(--bg-paper); padding:12px; border-radius:var(--radius-sm);">
-                <div style="font-size:12px; color:var(--text-sub);">错题消灭掌握率</div>
-                <div style="font-size:24px; font-weight:800; color:var(--status-green);" id="stat-errors">50.0%</div>
+              <div class="grid-2" style="gap:12px; margin-top:14px;">
+                <div class="stat-card">
+                  <div class="u-muted">连续打卡天数</div>
+                  <div class="stat-value c-orange" id="stat-streak">5 天</div>
+                </div>
+                <div class="stat-card">
+                  <div class="u-muted">古诗文记忆毕业率</div>
+                  <div class="stat-value c-green" id="stat-poetry">12.5%</div>
+                </div>
+                <div class="stat-card">
+                  <div class="u-muted">英语词汇毕业率</div>
+                  <div class="stat-value c-green" id="stat-words">20.8%</div>
+                </div>
+                <div class="stat-card">
+                  <div class="u-muted">错题消灭掌握率</div>
+                  <div class="stat-value c-status" id="stat-errors">50.0%</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1267,7 +1294,7 @@
         <div class="card">
           <p style="margin-bottom:14px; font-size:12px; color:var(--text-sub);">以下内容跟随顶部所选年级自动切换，无需在此单独设置。</p>
 
-          <div class="card" style="background:linear-gradient(135deg,#f0f7f4,#e8f1ec);">
+          <div class="card" style="background:var(--grad-growth);">
             <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <span>🧠 艾宾浩斯遗忘曲线 · 复习科学</span>
               <span id="ebbinghaus-stat" style="font-size:13px; color:var(--primary-green); font-weight:700;"></span>
@@ -1423,6 +1450,10 @@
         <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
         错题
         <div id="m-badge-err" class="bottom-tab-badge">0</div>
+      </li>
+      <li class="bottom-tab-item" onclick="switchTab('growth')">
+        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        成长
       </li>
     </ul>
   </nav>
@@ -2827,7 +2858,7 @@ words: [
       document.querySelectorAll('.bottom-tab-item').forEach(el => el.classList.remove('active'));
 
       // 激活样式
-      const navMap = { 'today': 0, 'homework': 1, 'memory': 2, 'error': 3 };
+      const navMap = { 'today': 0, 'homework': 1, 'memory': 2, 'error': 3, 'growth': 4 };
       const idx = navMap[tabName];
       if (document.querySelectorAll('.nav-item')[idx]) document.querySelectorAll('.nav-item')[idx].classList.add('active');
       if (document.querySelectorAll('.top-nav-item')[idx]) document.querySelectorAll('.top-nav-item')[idx].classList.add('active');
@@ -2837,7 +2868,8 @@ words: [
         'today': '放学复盘与今日任务',
         'homework': '作业登记',
         'memory': '古诗文与词汇背诵系统',
-        'error': '错题归因与四轮消灭本'
+        'error': '错题归因与四轮消灭本',
+        'growth': '我的成长与成就'
       };
       document.getElementById('page-title').innerText = titleMap[tabName];
       updateDateSubtitle();

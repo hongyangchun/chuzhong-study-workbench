@@ -51,3 +51,25 @@
 - 源码与线上 `nextReview: today, graduated: false` 兜底已清零
 - 线上 curl：`focus-item.summary`=2、`待开始`=5、旧兜底=0
 - 已 push，Cloudflare 自动部署上线
+
+---
+
+# 优化迭代：F3 今日复习队列（P0 收尾）
+
+## 需求背景
+词汇扩充到 727 词后，「从第一张翻到最后一张」式背诵不现实。F3 让背诵进入「只练今日该练的」编排队列，与 F2 分离「待开始/到期」一脉相承。
+
+## 实现（commit `bcafe37`，已 push，Cloudflare 上线）
+- 新增全屏专注浮层 `#review-overlay`（z-index 9000），复用 `.word-card` 翻卡样式，古诗/词汇/卡三态同构渲染。
+- 三个背诵子 tab 各加「🚀 开始今日复习 (N)」按钮；N 实时显示=到期项+待开始项（`updateReviewBadges` 挂到 `renderMemoryLists`）。
+- 队列算法 `buildReviewQueue`：到期项（mem 存在、未毕业、nextReview<=今天）+ 前 10 张待开始（无 mem）。
+- 浮层逐张翻卡复习，复用 `handleMemoryReview` 落库；完成后 🎉 完成态；退出时刷新底层视图。
+- 单测：毕业项/未来项正确排除、待开始封顶 10。
+
+## 验证
+- 内联脚本 `node --check` 通过
+- 线上 curl：review-overlay / startReview('poetry') / review-progress-bar 均命中（Cloudflare 边缘缓存首次偶现旧节点，复验通过）
+
+## P0 进度
+F1 搜索筛选 ✅ · F2 日期 bug ✅ · F3 今日复习队列 ✅ — P0 全部完成。
+下一步候选：F4 导入错峰排期 / 架构层 A1 抽成长 tab / UI 层 D1-D3 设计令牌与一致性。
