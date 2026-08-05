@@ -724,6 +724,37 @@
       flex: 0 0 auto;
       margin-left: auto;
     }
+    .mem-mode-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm, 8px);
+      overflow: hidden;
+      background: var(--bg-sub, #f5f7fa);
+      flex: 0 0 auto;
+    }
+    .mem-mode-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--text-sub, #6b7280);
+      font-size: 15px;
+      font-weight: 700;
+      padding: 9px 18px;
+      cursor: pointer;
+      min-height: 44px;
+      transition: background .15s, color .15s;
+    }
+    .mem-mode-btn + .mem-mode-btn {
+      border-left: 1px solid var(--border-color);
+    }
+    .mem-mode-btn.active {
+      background: var(--primary-green, #16a34a);
+      color: #fff;
+    }
+    .mem-mode-btn.active #reviewCount-active {
+      color: #fff;
+      font-weight: 800;
+    }
 
     .memory-tab-btn {
       font-size: 16px;
@@ -1333,8 +1364,12 @@
             <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">记忆卡</button>
           </div>
 
-          <!-- 工具栏：左侧搜索/筛选，右侧操作 -->
+          <!-- 工具栏：左侧模式开关 + 搜索/筛选，右侧操作 -->
           <div class="mem-toolbar">
+            <div class="mem-mode-toggle">
+              <button class="mem-mode-btn active" id="modeBrowse" onclick="setMemMode('browse')">浏览</button>
+              <button class="mem-mode-btn" id="modeReview" onclick="setMemMode('review')">复习 <span id="reviewCount-active">0</span></button>
+            </div>
             <div class="mem-filter-bar">
               <input id="memSearchInput" type="search" placeholder="搜索（词 / 释义 / 作者 / 内容…）" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:16px;" oninput="onMemSearch(this.value)">
               <select id="memFilterSelect" class="form-control" style="max-width:150px;" onchange="onMemFilter(this.value)">
@@ -1348,7 +1383,6 @@
             </div>
             <div class="mem-actions">
               <button class="btn btn-outline btn-sm" onclick="openAddCurrent()" title="新增当前子库的条目">＋ 新增</button>
-              <button class="btn btn-primary btn-sm" onclick="startReview(currentMemorySubTab)">🚀 开始今日复习 (<span id="reviewCount-active">0</span>)</button>
             </div>
           </div>
 
@@ -2848,6 +2882,7 @@ words: [
     let currentErrorFilter = "all";
     let currentErrorReasonFilter = "all";
     let currentMemorySubTab = "poetry";
+    let memMode = "browse"; // "browse" | "review"
     let allWordIndex = 0;
     let allCardIndex = 0;
 
@@ -3496,6 +3531,28 @@ words: [
       updateReviewBadges();
     }
 
+    // 背诵与记忆 tab：浏览 / 复习 双模式切换
+    // 浏览 = 纯管理（增删改、朗读）；复习 = 启动专注流浮层（去除卡片内嵌评级按钮，避免与管理态混淆）
+    function setMemMode(mode) {
+      memMode = mode;
+      const b = document.getElementById('modeBrowse');
+      const r = document.getElementById('modeReview');
+      if (b) b.classList.toggle('active', mode === 'browse');
+      if (r) r.classList.toggle('active', mode === 'review');
+      if (mode === 'review') {
+        startReview(currentMemorySubTab);
+        // 若队列为空，startReview 会弹窗并返回（未真正进入浮层），此时回退到浏览态
+        if (!reviewMode.active) {
+          memMode = 'browse';
+          if (b) b.classList.add('active');
+          if (r) r.classList.remove('active');
+          renderMemoryLists();
+        }
+      } else {
+        renderMemoryLists();
+      }
+    }
+
     // 头部「＋ 新增」按钮：按当前子库打开对应新增弹窗
     function openAddCurrent() {
       const t = currentMemorySubTab || 'poetry';
@@ -3587,8 +3644,6 @@ words: [
             <div class="poetry-content">${contentHtml}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn btn-outline btn-sm" onclick="speakText('${p.title}。${p.author}。${p.content.replace(/\n/g, '，')}')">🔊 朗读</button>
-              <button class="btn btn-primary btn-sm" onclick="handleMemoryReview('poetry', '${p.id}', true)">记住啦 (+1级)</button>
-              <button class="btn btn-accent btn-sm" onclick="handleMemoryReview('poetry', '${p.id}', false)">忘记了</button>
               <button class="btn btn-outline btn-sm" onclick="openEditPoetryModal('${p.id}')">编辑</button>
               <button class="btn btn-outline btn-sm" onclick="deleteUserPoetry('${p.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>
             </div>
@@ -3696,8 +3751,7 @@ words: [
         </div>
         <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
           <button class="btn btn-outline" onclick="prevWord()">上一个</button>
-          <button class="btn btn-primary" onclick="handleMemoryReview('word', '${w.id}', true)">牢记 (+1级)</button>
-          <button class="btn btn-accent" onclick="handleMemoryReview('word', '${w.id}', false)">忘记 (重来)</button>
+          <span style="font-size:12px; color:var(--text-sub); align-self:center;">切到「复习」模式开始记忆打卡 →</span>
           <button class="btn btn-outline" onclick="nextWord()">下一个</button>
           ${isUserItem ? `<button class="btn btn-outline btn-sm" onclick="openEditWordModal('${w.id}')">编辑</button><button class="btn btn-outline btn-sm" onclick="deleteUserWord('${w.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>` : ''}
         </div>
@@ -3776,8 +3830,7 @@ words: [
         </div>
         <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
           <button class="btn btn-outline" onclick="prevCard()">上一个</button>
-          <button class="btn btn-primary" onclick="handleMemoryReview('card', '${card.id}', true)">记住啦 (+1级)</button>
-          <button class="btn btn-accent" onclick="handleMemoryReview('card', '${card.id}', false)">忘记了 (重来)</button>
+          <span style="font-size:12px; color:var(--text-sub); align-self:center;">切到「复习」模式开始记忆打卡 →</span>
           <button class="btn btn-outline" onclick="nextCard()">下一个</button>
           <button class="btn btn-outline btn-sm" onclick="openEditCardModal('${card.id}')">编辑</button>
           <button class="btn btn-outline btn-sm" onclick="deleteUserCard('${card.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>
@@ -3993,6 +4046,13 @@ words: [
       const ov = document.getElementById('review-overlay');
       ov.style.display = 'none';
       document.body.style.overflow = '';
+      // 复习浮层关闭后，回到浏览模式并同步切换器 UI
+      memMode = 'browse';
+      const b = document.getElementById('modeBrowse');
+      const r = document.getElementById('modeReview');
+      if (b) b.classList.remove('active');
+      if (r) r.classList.remove('active');
+      if (b) b.classList.add('active');
       renderMemoryLists();
     }
 
