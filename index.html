@@ -827,6 +827,24 @@
       font-style: italic;
     }
 
+    /* 通用记忆卡：内容可能较长，改为左对齐 + 可滚动，避免 260px 固定高度裁切 */
+    .word-card-front.gen-card-front,
+    .word-card-back.gen-card-back {
+      justify-content: flex-start;
+      align-items: flex-start;
+      text-align: left;
+      overflow-y: auto;
+    }
+    .word-card-front.gen-card-front .word-spelling {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+    .word-card-back.gen-card-back .word-meaning {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.7;
+    }
+
     /* 模块 3: 错题本 */
     .error-card {
       background: var(--bg-card);
@@ -1252,6 +1270,7 @@
           <div class="memory-tab-header">
             <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文背诵 (<span id="memPoetryCount">0</span>篇)</button>
             <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">英语课标词汇 (<span id="memWordCount">0</span>词卡片)</button>
+            <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">通用记忆卡 (<span id="memCardCount">0</span>张)</button>
           </div>
 
           <!-- 古诗文区 -->
@@ -1273,6 +1292,17 @@
             </div>
             <div id="word-card-view">
               <!-- 翻卡视图动态渲染 -->
+            </div>
+          </div>
+
+          <!-- 通用记忆卡区 -->
+          <div id="memory-sub-card" style="display:none;">
+            <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <span style="font-size:14px; color:var(--text-sub);">道法 / 历史 / 地理 / 生物等任意学科都能建卡，按 1,3,7 天三轮艾宾浩斯复习。</span>
+              <button class="btn btn-primary btn-sm" onclick="openAddCardModal()">+ 新增记忆卡</button>
+            </div>
+            <div id="card-view">
+              <!-- 通用记忆卡翻卡视图动态渲染 -->
             </div>
           </div>
         </div>
@@ -1423,6 +1453,32 @@
           <input type="text" id="word-input-example" class="form-control" placeholder="例如：Facing challenges makes you stronger.">
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;">保存词汇卡片</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 新增/修改通用记忆卡 Modal -->
+  <div id="addCardModal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-title">
+        <span id="card-modal-title-text">新增通用记忆卡</span>
+        <button class="btn btn-outline btn-sm" onclick="closeAddCardModal()">✕</button>
+      </div>
+      <form onsubmit="handleSaveCustomCard(event)">
+        <input type="hidden" id="edit-card-id">
+        <div class="form-group">
+          <label class="form-label">所属学科</label>
+          <select id="card-input-subject" class="form-control" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">正面：待背内容 / 提问</label>
+          <textarea id="card-input-front" class="form-control" placeholder="例如：大运河的开通有什么历史意义？" required></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">背面：答案 / 要点提示（支持换行）</label>
+          <textarea id="card-input-back" class="form-control" placeholder="例如：①加强南北交通；②促进经济文化交流；③巩固统一。"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">保存记忆卡</button>
       </form>
     </div>
   </div>
@@ -1745,6 +1801,12 @@
         },
         userPoetry: [],
         userWords: [],
+        cardMemory: {
+          1: { stage: 1, nextReview: today, forgetCountToday: 0, lastForgetDate: "", graduated: false, isDemo: true }
+        },
+        userCards: [
+          { id: "card-demo-1", subject: "道德与法治", front: "我国宪法规定的国家根本制度是什么？", back: "社会主义制度。\n（补充：人民代表大会制度是根本政治制度，中国共产党领导的多党合作和政治协商制度是基本政治制度。）", vol: '7上', createdAt: today, isDemo: true }
+        ],
         errors: [
           { id: "err-demo-1", subject: "数学", summary: "求解方程 2(x-3) = 8 时漏乘括号后项", reason: "计算细节", solution: "展开括号时应用乘法分配律，a(b+c)=ab+ac。正确步骤：2x - 6 = 8 => 2x = 14 => x = 7。", stage: 1, nextReview: today, graduated: false, isDemo: true, vol: '7上', createdAt: today },
           { id: "err-demo-2", subject: "英语", summary: "单三形式混淆：He always (go) to school by bike.", reason: "概念不清", solution: "主语是第三人称单数 He，一般现在时谓语动词加-es：goes。", stage: 4, nextReview: today, graduated: true, isDemo: true, vol: '7上', createdAt: today }
@@ -1768,6 +1830,8 @@
         wordMemory: {},
         userPoetry: [],
         userWords: [],
+        cardMemory: {},
+        userCards: [],
         errors: []
       };
     }
@@ -1793,7 +1857,15 @@
           saveData();
         }
       }
+      normalizeLoadedData();
       autoRolloverOverdue();
+    }
+
+    // 向后兼容：旧备份可能缺少通用记忆卡字段，加载时补齐，避免渲染/统计报错
+    function normalizeLoadedData() {
+      if (!appData) { appData = getInitialData(); return; }
+      if (!appData.cardMemory) appData.cardMemory = {};
+      if (!appData.userCards) appData.userCards = [];
     }
 
     function saveData() {
@@ -1829,6 +1901,7 @@
     let currentErrorReasonFilter = "all";
     let currentMemorySubTab = "poetry";
     let allWordIndex = 0;
+    let allCardIndex = 0;
 
     function switchTab(tabName) {
       currentTab = tabName;
@@ -1867,6 +1940,7 @@
       renderHomeworkList();
       renderPoetryList();
       renderWordView();
+      renderCardView();
       renderEbbinghausChart();
       renderErrorList();
       updateBadges();
@@ -1879,11 +1953,17 @@
 
       // 实时统计：今日待复习（已有进度 + 未毕业 + nextReview<=今天），跨全部册
       const today = getTodayDateStr();
-      let duePoetry = 0, dueWord = 0;
+      let duePoetry = 0, dueWord = 0, dueCard = 0;
       if (appData.poetryMemory) Object.values(appData.poetryMemory).forEach(m => { if (m && !m.graduated && m.nextReview <= today) duePoetry++; });
       if (appData.wordMemory) Object.values(appData.wordMemory).forEach(m => { if (m && !m.graduated && m.nextReview <= today) dueWord++; });
+      (appData.userCards || []).forEach(c => {
+        if (!c.vol || c.vol === currentVolume()) {
+          const m = appData.cardMemory[c.id];
+          if (m && !m.graduated && m.nextReview <= today) dueCard++;
+        }
+      });
       const statEl = document.getElementById('ebbinghaus-stat');
-      if (statEl) statEl.innerText = `今日待复习：诗词 ${duePoetry} 篇 · 词汇 ${dueWord} 词`;
+      if (statEl) statEl.innerText = `今日待复习：诗词 ${duePoetry} 篇 · 词汇 ${dueWord} 词 · 记忆卡 ${dueCard} 张`;
 
       // 画布参数
       const W = 680, H = 240, ml = 42, mr = 16, mt = 20, mb = 38;
@@ -1937,7 +2017,7 @@
       document.getElementById('badge-hw').innerText = urgentHwCount;
       document.getElementById('m-badge-hw').innerText = urgentHwCount;
 
-      // 记忆 Badge: 仅统计已有进度且到期需复习的古诗词与单词（跨全部册）
+      // 记忆 Badge: 仅统计已有进度且到期需复习的古诗词、单词与通用记忆卡（跨全部册）
       let memDueCount = 0;
       Object.values(getPoetryBank()).forEach(arr => arr.forEach(p => {
         const mem = appData.poetryMemory ? appData.poetryMemory[p.id] : null;
@@ -1947,6 +2027,12 @@
         const mem = appData.wordMemory ? appData.wordMemory[w.id] : null;
         if (mem && !mem.graduated && mem.nextReview <= today) memDueCount++;
       }));
+      (appData.userCards || []).forEach(c => {
+        if (!c.vol || c.vol === currentVolume()) {
+          const mem = appData.cardMemory[c.id];
+          if (mem && !mem.graduated && mem.nextReview <= today) memDueCount++;
+        }
+      });
       document.getElementById('badge-mem').innerText = memDueCount;
       document.getElementById('m-badge-mem').innerText = memDueCount;
 
@@ -2018,6 +2104,26 @@
             actionText: '去翻卡',
             onAction: `switchTab('memory')`
           });
+        }
+      });
+
+      // 3.5 记忆项 (通用记忆卡) — 仅当前册
+      (appData.userCards || []).forEach(c => {
+        if (!c.vol || c.vol === currentVolume()) {
+          const mem = appData.cardMemory[c.id] || { nextReview: today, graduated: false };
+          if (!mem.graduated && mem.nextReview <= today) {
+            items.push({
+              type: 'card',
+              id: c.id,
+              tag: '记忆卡',
+              tagClass: 'tag-word',
+              title: `【${c.subject || '通用'}记忆卡】${c.front}`,
+              sub: mem.stage !== undefined ? `艾宾浩斯第 ${mem.stage + 1} 轮复习` : '开始首轮复习',
+              isOverdue: false,
+              actionText: '去复习',
+              onAction: `switchTab('memory')`
+            });
+          }
         }
       });
 
@@ -2331,13 +2437,11 @@
       document.querySelectorAll('.memory-tab-btn').forEach(b => b.classList.remove('active'));
       btnEl.classList.add('active');
 
-      if (sub === 'poetry') {
-        document.getElementById('memory-sub-poetry').style.display = 'block';
-        document.getElementById('memory-sub-word').style.display = 'none';
-      } else {
-        document.getElementById('memory-sub-poetry').style.display = 'none';
-        document.getElementById('memory-sub-word').style.display = 'block';
-      }
+      const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'block' : 'none'; };
+      show('memory-sub-poetry', sub === 'poetry');
+      show('memory-sub-word', sub === 'word');
+      show('memory-sub-card', sub === 'card');
+      if (sub === 'card') renderCardView();
     }
 
     // 古诗词背诵渲染
@@ -2505,11 +2609,76 @@
       renderWordView();
     }
 
+    // 通用记忆卡：跨任意学科，复用艾宾浩斯 1,3,7 天复习调度
+    function getAllCards() {
+      return (appData.userCards || []).filter(c => !c.vol || c.vol === currentVolume());
+    }
+
+    function renderCardView() {
+      const container = document.getElementById('card-view');
+      if (!container) return;
+      const cc = document.getElementById('memCardCount');
+      const allCards = getAllCards();
+      if (cc) cc.innerText = allCards.length;
+
+      if (allCards.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:34px 16px; color:var(--text-sub); line-height:1.8;">当前册还没有通用记忆卡。<br>点击右上角「+ 新增记忆卡」，把道法 / 历史 / 地理 / 生物等重点知识做成卡片吧！</div>`;
+        return;
+      }
+
+      if (allCardIndex >= allCards.length) allCardIndex = 0;
+      const card = allCards[allCardIndex];
+      const mem = appData.cardMemory[card.id];
+      const displayReview = mem
+        ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮复习</span>`)
+        : `<span style="font-size:12px; color:var(--text-sub);">未开始复习</span>`;
+
+      const backHtml = (card.back || '').split('\n').map(l => `<div>${l}</div>`).join('');
+
+      container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <span style="font-weight:700; color:var(--primary-green);">记忆卡 (${allCardIndex + 1} / ${allCards.length}) ${card.subject ? `<span style="font-size:12px; background:var(--accent-orange-light); color:var(--accent-orange); padding:2px 6px; border-radius:4px; margin-left:6px;">${card.subject}</span>` : ''}</span>
+          ${displayReview}
+        </div>
+        <div class="word-card-container" id="genCard" onclick="this.classList.toggle('flipped')">
+          <div class="word-card-inner">
+            <div class="word-card-front gen-card-front">
+              <div class="word-spelling">${card.front}</div>
+              <div style="margin-top:18px; font-size:13px; color:var(--text-sub);">👆 点击卡片翻面看答案 / 提示</div>
+            </div>
+            <div class="word-card-back gen-card-back">
+              <div class="word-meaning">${backHtml}</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="prevCard()">上一个</button>
+          <button class="btn btn-primary" onclick="handleMemoryReview('card', '${card.id}', true)">记住啦 (+1级)</button>
+          <button class="btn btn-accent" onclick="handleMemoryReview('card', '${card.id}', false)">忘记了 (重来)</button>
+          <button class="btn btn-outline" onclick="nextCard()">下一个</button>
+          <button class="btn btn-outline btn-sm" onclick="openEditCardModal('${card.id}')">编辑</button>
+          <button class="btn btn-outline btn-sm" onclick="deleteUserCard('${card.id}')" style="color:var(--status-red); border-color:var(--status-red);">删除</button>
+        </div>
+      `;
+    }
+
+    function prevCard() {
+      const len = getAllCards().length;
+      allCardIndex = (allCardIndex - 1 + len) % len;
+      renderCardView();
+    }
+    function nextCard() {
+      const len = getAllCards().length;
+      allCardIndex = (allCardIndex + 1) % len;
+      renderCardView();
+    }
+
     // 艾宾浩斯复习调度算法 (1, 3, 7天)
     // 规则：同一内容当天连续忘记 2 次后次日再出现
     function handleMemoryReview(type, id, isRemembered) {
       const today = getTodayDateStr();
-      const storageObj = (type === 'poetry') ? appData.poetryMemory : appData.wordMemory;
+      const storageMap = { poetry: appData.poetryMemory, word: appData.wordMemory, card: appData.cardMemory };
+      const storageObj = storageMap[type] || appData.cardMemory;
       const sid = String(id);
 
       if (!storageObj[sid]) {
@@ -2555,6 +2724,7 @@
 
       saveData();
       if (type === 'word') nextWord();
+      else if (type === 'card') renderCardView();
     }
 
     // ------------------------------------------------------------------
@@ -2974,29 +3144,33 @@
       });
       slim.poetryBank = slimPB; slim.wordBank = slimWB;
 
-      // 记忆进度：按册映射出被归档的诗/词 ID，其余保留
-      const arcPoemIds = new Set(), arcWordIds = new Set();
+      // 记忆进度：按册映射出被归档的诗/词/卡 ID，其余保留
+      const arcPoemIds = new Set(), arcWordIds = new Set(), arcCardIds = new Set();
       others.forEach(v => {
         (appData.poetryBank[v] || []).forEach(p => arcPoemIds.add(String(p.id)));
         (appData.wordBank[v] || []).forEach(w => arcWordIds.add(String(w.id)));
+        (appData.userCards || []).forEach(c => { if (c.vol === v) arcCardIds.add(String(c.id)); });
       });
-      const slimPM = {}, slimWM = {};
+      const slimPM = {}, slimWM = {}, slimCM = {};
       Object.keys(slim.poetryMemory || {}).forEach(k => { if (!arcPoemIds.has(k)) slimPM[k] = slim.poetryMemory[k]; });
       Object.keys(slim.wordMemory || {}).forEach(k => { if (!arcWordIds.has(k)) slimWM[k] = slim.wordMemory[k]; });
-      slim.poetryMemory = slimPM; slim.wordMemory = slimWM;
+      Object.keys(slim.cardMemory || {}).forEach(k => { if (!arcCardIds.has(k)) slimCM[k] = slim.cardMemory[k]; });
+      slim.poetryMemory = slimPM; slim.wordMemory = slimWM; slim.cardMemory = slimCM;
 
-      // 用户自定义诗/词：有 vol 则按册过滤，无 vol 视为当前保留
+      // 用户自定义诗/词/卡：有 vol 则按册过滤，无 vol 视为当前保留
       if (slim.userPoetry) slim.userPoetry = slim.userPoetry.filter(p => !p.vol || keepSet.has(p.vol));
       if (slim.userWords) slim.userWords = slim.userWords.filter(w => !w.vol || keepSet.has(w.vol));
+      if (slim.userCards) slim.userCards = slim.userCards.filter(c => !c.vol || keepSet.has(c.vol));
 
       // 组装被移除部分作为归档快照（含记忆进度与用户自定义）
       const removed = {
         homework: (appData.homework || []).filter(h => !keepSet.has(h.vol)),
         errors: (appData.errors || []).filter(e => !keepSet.has(e.vol)),
         poetryBank: {}, wordBank: {},
-        poetryMemory: {}, wordMemory: {},
+        poetryMemory: {}, wordMemory: {}, cardMemory: {},
         userPoetry: (appData.userPoetry || []).filter(p => p.vol && !keepSet.has(p.vol)),
-        userWords: (appData.userWords || []).filter(w => w.vol && !keepSet.has(w.vol))
+        userWords: (appData.userWords || []).filter(w => w.vol && !keepSet.has(w.vol)),
+        userCards: (appData.userCards || []).filter(c => c.vol && !keepSet.has(c.vol))
       };
       others.forEach(v => {
         if (appData.poetryBank[v]) removed.poetryBank[v] = appData.poetryBank[v];
@@ -3004,6 +3178,7 @@
       });
       arcPoemIds.forEach(k => { if (appData.poetryMemory[k]) removed.poetryMemory[k] = appData.poetryMemory[k]; });
       arcWordIds.forEach(k => { if (appData.wordMemory[k]) removed.wordMemory[k] = appData.wordMemory[k]; });
+      arcCardIds.forEach(k => { if (appData.cardMemory[k]) removed.cardMemory[k] = appData.cardMemory[k]; });
 
       const store = getArchiveStore();
       store.push({ id: 'arc_' + Date.now(), label: '归档往年（' + others.join('、') + '）', at: new Date().toISOString(), data: removed });
@@ -3029,12 +3204,13 @@
           appData[k][v] = appData[k][v].concat(d[k][v].filter(x => !appData[k][v].find(y => y.id === x.id)));
         });
       });
-      ['poetryMemory', 'wordMemory'].forEach(k => {
+      ['poetryMemory', 'wordMemory', 'cardMemory'].forEach(k => {
         if (!appData[k]) appData[k] = {};
         if (d[k]) Object.keys(d[k]).forEach(idk => { if (!appData[k][idk]) appData[k][idk] = d[k][idk]; });
       });
       if (d.userPoetry) appData.userPoetry = (appData.userPoetry || []).concat(d.userPoetry.filter(p => !(appData.userPoetry || []).find(x => x.id === p.id)));
       if (d.userWords) appData.userWords = (appData.userWords || []).concat(d.userWords.filter(w => !(appData.userWords || []).find(x => x.id === w.id)));
+      if (d.userCards) appData.userCards = (appData.userCards || []).concat(d.userCards.filter(c => !(appData.userCards || []).find(x => x.id === c.id)));
       saveData();
       alert('归档已合并恢复到活跃库 ✓');
     }
@@ -3373,6 +3549,14 @@
           });
         }
 
+        // 4.5 清理通用记忆卡 demo 项及其进度
+        if (appData.userCards) appData.userCards = appData.userCards.filter(c => !c.isDemo);
+        if (appData.cardMemory) {
+          Object.keys(appData.cardMemory).forEach(id => {
+            if (appData.cardMemory[id].isDemo) delete appData.cardMemory[id];
+          });
+        }
+
         // 5. 清空内置教材库（全部册），但保留用户自定义古诗文与词汇
         appData.poetryBank = {};
         appData.wordBank = {};
@@ -3514,6 +3698,86 @@
         appData.userWords = appData.userWords.filter(w => w.id !== id);
         if (appData.wordMemory[id]) delete appData.wordMemory[id];
         saveData();
+      }
+    }
+
+    // ========== 通用记忆卡 CRUD ==========
+    function populateCardSubjectSelect() {
+      const sel = document.getElementById('card-input-subject');
+      if (!sel) return;
+      const subs = getSubjectsForVolume(currentVolume());
+      const prev = sel.value;
+      sel.innerHTML = '';
+      subs.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        sel.appendChild(o);
+      });
+      if (subs.indexOf(prev) >= 0) sel.value = prev;
+    }
+
+    function openAddCardModal() {
+      document.getElementById('edit-card-id').value = '';
+      document.getElementById('card-input-front').value = '';
+      document.getElementById('card-input-back').value = '';
+      document.getElementById('card-modal-title-text').innerText = '新增通用记忆卡';
+      populateCardSubjectSelect();
+      document.getElementById('addCardModal').classList.add('active');
+    }
+
+    function openEditCardModal(id) {
+      const c = (appData.userCards || []).find(x => x.id === id);
+      if (!c) return;
+      document.getElementById('edit-card-id').value = c.id;
+      document.getElementById('card-input-front').value = c.front;
+      document.getElementById('card-input-back').value = c.back;
+      document.getElementById('card-modal-title-text').innerText = '编辑通用记忆卡';
+      populateCardSubjectSelect();
+      const sel = document.getElementById('card-input-subject');
+      if (sel && c.subject) sel.value = c.subject;
+      document.getElementById('addCardModal').classList.add('active');
+    }
+
+    function closeAddCardModal() {
+      document.getElementById('addCardModal').classList.remove('active');
+    }
+
+    function handleSaveCustomCard(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-card-id').value;
+      const front = document.getElementById('card-input-front').value.trim();
+      const back = document.getElementById('card-input-back').value.trim();
+      const subject = document.getElementById('card-input-subject').value;
+      if (!front) return;
+
+      if (!appData.userCards) appData.userCards = [];
+
+      if (id) {
+        const c = appData.userCards.find(x => x.id === id);
+        if (c) { c.front = front; c.back = back; c.subject = subject; c.vol = currentVolume(); }
+      } else {
+        appData.userCards.push({
+          id: 'uc_' + Date.now(),
+          subject: subject,
+          front: front,
+          back: back,
+          vol: currentVolume(),
+          createdAt: getTodayDateStr(),
+          isDemo: false
+        });
+      }
+      saveData();
+      closeAddCardModal();
+      renderCardView();
+      alert("✅ 记忆卡已保存！");
+    }
+
+    function deleteUserCard(id) {
+      if (confirm("确认删除这张通用记忆卡吗？其复习进度也会一并清除。")) {
+        appData.userCards = appData.userCards.filter(c => c.id !== id);
+        if (appData.cardMemory[id]) delete appData.cardMemory[id];
+        saveData();
+        renderCardView();
       }
     }
 
