@@ -1141,15 +1141,6 @@
           <p id="page-subtitle">今天是 2026年8月4日 · 保持专注，积少成多！</p>
         </div>
         <div class="volume-switcher">
-          <span class="vol-label">当前年级</span>
-          <select id="global-volume-select" class="form-control" style="width:auto; min-width:130px;" onchange="switchVolume(this.value)">
-            <option value="7上">初一上 (7上)</option>
-            <option value="7下">初一下 (7下)</option>
-            <option value="8上">初二上 (8上)</option>
-            <option value="8下">初二下 (8下)</option>
-            <option value="9上">初三上 (9上)</option>
-            <option value="9下">初三下 (9下)</option>
-          </select>
           <span id="global-volume-label" class="vol-current">初一 上（7上）</span>
         </div>
       </div>
@@ -1586,6 +1577,19 @@
         </div>
 
         <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md);">
+          <h4 style="color:var(--primary-green); margin-bottom:6px;">🎓 当前年级（册）</h4>
+          <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">切换后，作业、错题、背诵库全部按该年级（册）联动展示。导入教材时也以当前年级为目标册之一。</p>
+          <select id="settings-volume-select" class="form-control" style="max-width:260px;" onchange="switchVolume(this.value)">
+            <option value="7上">初一上 (7上)</option>
+            <option value="7下">初一下 (7下)</option>
+            <option value="8上">初二上 (8上)</option>
+            <option value="8下">初二下 (8下)</option>
+            <option value="9上">初三上 (9上)</option>
+            <option value="9下">初三下 (9下)</option>
+          </select>
+        </div>
+
+        <div style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md);">
           <h4 style="color:var(--accent-orange); margin-bottom:6px;">背诵库</h4>
           <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">古诗文与词汇背诵库在这里建立。导入后的内容可在「背诵与记忆」里自由编辑、删除，背诵进度不受影响。</p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -1593,15 +1597,6 @@
             <button class="btn btn-outline btn-sm" onclick="clearImportedLibrary()">清除已导入教材内容</button>
           </div>
           <div id="libraryStatus" style="font-size:12px; color:var(--text-sub); margin-top:10px;"></div>
-        </div>
-
-        <!-- 示例数据区：仅在还存在内置演示数据时显示，清干净后自动隐藏，避免留死按钮 -->
-        <div id="demoDataSection" style="background:var(--bg-paper); padding:16px; border-radius:var(--radius-md); display:none;">
-          <h4 style="color:var(--accent-orange); margin-bottom:6px;">示例数据</h4>
-          <p style="font-size:13px; color:var(--text-sub); margin-bottom:12px;">首次打开时预置的演示作业、错题与记忆卡（<span id="demoDataCount"></span>）。清除后仅保留您自己登记 / 新增的内容。</p>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="clearOnlyDemoData()">清除示例数据</button>
-          </div>
         </div>
 
         <div style="background:var(--status-red-bg); padding:16px; border-radius:var(--radius-md); border:1px solid var(--status-red);">
@@ -1919,10 +1914,10 @@
       currentHwGradeFilter = v;
       saveData();                      // 内部会触发 renderAll()，按新册刷新各模块
       // 同步全局年级选择器
-      const gsel = document.getElementById('global-volume-select');
-      if (gsel) gsel.value = v;
       const glabel = document.getElementById('global-volume-label');
       if (glabel) glabel.innerText = volumeToGrade(v) + volumeToSemester(v) + '（' + v + '）';
+      const ssel = document.getElementById('settings-volume-select');
+      if (ssel) ssel.value = v;
     }
 
     // 按当前册填充学科下拉（新增作业 / 错题时使用）
@@ -2005,25 +2000,14 @@
           level: 3,
           lastActiveDate: today
         },
-        homework: [
-          { id: "hw-demo-1", subject: "数学", content: "完成《一元一次方程》练习册P42页第1-8题", dueDate: yesterday, completed: false, isDemo: true, vol: '7上', createdAt: yesterday },
-          { id: "hw-demo-2", subject: "语文", content: "背诵《观沧海》全文并默写在作业本上", dueDate: tomorrow, completed: false, isDemo: true, vol: '7上', createdAt: today },
-          { id: "hw-demo-3", subject: "英语", content: "抄写初一课标词汇 Unit 1 单词并造句", dueDate: tomorrow, completed: true, isDemo: true, vol: '7上', createdAt: today }
-        ],
+        homework: [],
         poetryMemory: {},
         wordMemory: {},
         userPoetry: [],
         userWords: [],
-        cardMemory: {
-          1: { stage: 1, nextReview: today, forgetCountToday: 0, lastForgetDate: "", graduated: false, isDemo: true }
-        },
-        userCards: [
-          { id: "card-demo-1", subject: "道德与法治", front: "我国宪法规定的国家根本制度是什么？", back: "社会主义制度。\n（补充：人民代表大会制度是根本政治制度，中国共产党领导的多党合作和政治协商制度是基本政治制度。）", vol: '7上', createdAt: today, isDemo: true }
-        ],
-        errors: [
-          { id: "err-demo-1", subject: "数学", summary: "求解方程 2(x-3) = 8 时漏乘括号后项", reason: "计算细节", solution: "展开括号时应用乘法分配律，a(b+c)=ab+ac。正确步骤：2x - 6 = 8 => 2x = 14 => x = 7。", stage: 1, nextReview: today, graduated: false, isDemo: true, vol: '7上', createdAt: today },
-          { id: "err-demo-2", subject: "英语", summary: "单三形式混淆：He always (go) to school by bike.", reason: "概念不清", solution: "主语是第三人称单数 He，一般现在时谓语动词加-es：goes。", stage: 4, nextReview: today, graduated: true, isDemo: true, vol: '7上', createdAt: today }
-        ]
+        cardMemory: {},
+        userCards: [],
+        errors: []
       };
     }
 
@@ -2080,6 +2064,18 @@
       if (!appData.userPoetry) appData.userPoetry = [];
       if (!appData.userWords) appData.userWords = [];
       migrateLegacyBanks();
+      stripLegacyDemo();   // 历史预置示例数据在加载时一次性剥离（功能已移除）
+    }
+
+    // 历史版本预置的示例数据（isDemo）在加载时直接剥离，无需用户手动清除
+    function stripLegacyDemo() {
+      if (!appData) return;
+      if (appData.homework) appData.homework = appData.homework.filter(h => !h.isDemo);
+      if (appData.errors) appData.errors = appData.errors.filter(e => !e.isDemo);
+      if (appData.userCards) appData.userCards = appData.userCards.filter(c => !c.isDemo);
+      if (appData.poetryMemory) Object.keys(appData.poetryMemory).forEach(id => { if (appData.poetryMemory[id] && appData.poetryMemory[id].isDemo) delete appData.poetryMemory[id]; });
+      if (appData.wordMemory) Object.keys(appData.wordMemory).forEach(id => { if (appData.wordMemory[id] && appData.wordMemory[id].isDemo) delete appData.wordMemory[id]; });
+      if (appData.cardMemory) Object.keys(appData.cardMemory).forEach(id => { if (appData.cardMemory[id] && appData.cardMemory[id].isDemo) delete appData.cardMemory[id]; });
     }
 
     // 迁移：旧版只读教材库 poetryBank / wordBank（按册对象）→ 统一并入 userPoetry / userWords，
@@ -2558,7 +2554,6 @@
         content: content,
         dueDate: dueDate,
         completed: false,
-        isDemo: false,
         vol: currentVolume(),
         createdAt: getTodayDateStr()
       };
@@ -2974,7 +2969,6 @@
         stage: 0,
         nextReview: getTodayDateStr(),
         graduated: false,
-        isDemo: false,
         vol: currentVolume(),
         createdAt: getTodayDateStr(),
         images: []
@@ -3237,6 +3231,8 @@
       loadSyncInputs();
       renderArchiveSection();
       renderSettingsDataSections();
+      const svs = document.getElementById('settings-volume-select');
+      if (svs) svs.value = currentVolume();
       document.getElementById('settingsModal').classList.add('active');
     }
 
@@ -3254,13 +3250,6 @@
         status.innerText = parts.length ? '当前背诵库：' + parts.join('，') : '当前背诵库为空，点上方按钮导入教材。';
       }
 
-      const demoCount = (appData.homework || []).filter(h => h.isDemo).length
-        + (appData.errors || []).filter(e => e.isDemo).length
-        + (appData.userCards || []).filter(c => c.isDemo).length;
-      const sec = document.getElementById('demoDataSection');
-      const cnt = document.getElementById('demoDataCount');
-      if (sec) sec.style.display = demoCount > 0 ? 'block' : 'none';
-      if (cnt) cnt.innerText = '当前还剩 ' + demoCount + ' 条';
     }
 
     function closeSettingsModal() {
@@ -3766,47 +3755,6 @@
     }
 
     // 铁律：只清除示例数据，不影响用户添加的数据
-    function clearOnlyDemoData() {
-      if (confirm("确认清空初始示例数据吗？将一并清除全部册教材库（各学年古诗文与课标词汇），仅保留您自己登记/新增的内容。误清可点“恢复教材默认库”找回。")) {
-        // 1. 清理作业中的 demo 项
-        appData.homework = appData.homework.filter(h => !h.isDemo);
-
-        // 2. 清理错题中的 demo 项
-        appData.errors = appData.errors.filter(e => !e.isDemo);
-
-        // 3. 重置古诗词记忆中的 demo 项（保留用户新增诗的进度）
-        if (appData.poetryMemory) {
-          Object.keys(appData.poetryMemory).forEach(id => {
-            if (appData.poetryMemory[id].isDemo) {
-              delete appData.poetryMemory[id];
-            }
-          });
-        }
-
-        // 4. 重置单词记忆中的 demo 项（保留用户新增词的进度）
-        if (appData.wordMemory) {
-          Object.keys(appData.wordMemory).forEach(id => {
-            if (appData.wordMemory[id].isDemo) {
-              delete appData.wordMemory[id];
-            }
-          });
-        }
-
-        // 4.5 清理通用记忆卡 demo 项及其进度
-        if (appData.userCards) appData.userCards = appData.userCards.filter(c => !c.isDemo);
-        if (appData.cardMemory) {
-          Object.keys(appData.cardMemory).forEach(id => {
-            if (appData.cardMemory[id].isDemo) delete appData.cardMemory[id];
-          });
-        }
-
-        saveData();
-        alert("✨ 示例数据已清理完毕！您自定义与导入的内容完好保留。");
-        renderAll();
-        // 留在设置里并刷新区块：示例数据清空后该区块会自动隐藏
-        renderSettingsDataSections();
-      }
-    }
 
     // 清除通过「按教材版本导入」写入的教材内容（isDefault 标记），保留手动新增的自定义古诗文/词汇
     function clearImportedLibrary() {
@@ -3877,6 +3825,8 @@
         o.value = v; o.textContent = v;
         vsel.appendChild(o);
       });
+      // 默认选中当前年级（册）：单册导入后提示篇数 = 列表实际篇数，避免默认的「全部册」造成数目出入
+      if (vols.indexOf(currentVolume()) >= 0) vsel.value = currentVolume();
     }
 
     // 将预设写进唯一可背诵库（userPoetry / userWords），同册的旧导入项会被替换
@@ -3921,15 +3871,23 @@
         }
       });
 
-      saveData();
+      // 单册导入后把全局年级自动切到该册：导入结果即时可见，提示篇数 = 列表实际篇数
+      if (volSel !== '__all__') {
+        switchVolume(volSel);   // 内部已 saveData + renderAll
+      } else {
+        saveData();
+      }
       closeEditionImportModal();
       // 从设置弹窗唤起时一并关掉设置，让用户直接看到导入结果
       closeSettingsModal();
       const parts = [];
       if (addedP) parts.push(addedP + ' 篇古诗文');
       if (addedW) parts.push(addedW + ' 个课标词汇');
-      alert('✅ 已导入教材库：' + (parts.join('，') || '（空）') + '。\n导入内容已写入背诵库，可在「背诵与记忆」里自由编辑 / 删除。');
-      renderAll();
+      let msg = '✅ 已导入教材库：' + (parts.join('，') || '（空）') + '。\n导入内容已写入背诵库，可在「背诵与记忆」里自由编辑 / 删除。';
+      if (volSel === '__all__') {
+        msg += '\n（已覆盖多个年级，记忆列表按当前年级显示，可在「设置 → 当前年级」切换查看各册内容。）';
+      }
+      alert(msg);
       switchTab('memory');
     }
 
@@ -4154,8 +4112,7 @@
           front: front,
           back: back,
           vol: currentVolume(),
-          createdAt: getTodayDateStr(),
-          isDemo: false
+          createdAt: getTodayDateStr()
         });
       }
       saveData();
@@ -4221,8 +4178,6 @@
       populateSubjectSelect('err-subject');
       renderHwSubjectFilters();
       renderErrorSubjectFilters();
-      const gsel = document.getElementById('global-volume-select');
-      if (gsel) gsel.value = currentVolume();
       const glabel = document.getElementById('global-volume-label');
       if (glabel) glabel.innerText = volumeToGrade(currentVolume()) + volumeToSemester(currentVolume()) + '（' + currentVolume() + '）';
       renderAll();
