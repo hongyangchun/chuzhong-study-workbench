@@ -3092,31 +3092,50 @@ words: [
         }
       });
 
-      // 「待开始」汇总卡：统计当前册尚未开始学（无记忆记录）的诗/词/卡，引导去背诵库挑选今日任务
-      let unP = 0, unW = 0, unC = 0;
-      visiblePoetry().forEach(p => { if (!appData.poetryMemory || !appData.poetryMemory[p.id]) unP++; });
-      visibleWords().forEach(w => { if (!appData.wordMemory || !appData.wordMemory[w.id]) unW++; });
-      (appData.userCards || []).forEach(c => { if ((!c.vol || c.vol === currentVolume()) && (!appData.cardMemory || !appData.cardMemory[c.id])) unC++; });
+      // F4「待开始」汇总卡：区分「今天可学」与「已排期未来解锁」两类
+      let unP = 0, unW = 0, unC = 0;       // 今天可学（待开始且已排期到今天）
+      let schP = 0, schW = 0, schC = 0;    // 已排期、未来才解锁
+      let latestUnlock = '';               // 最晚解锁日期
+      visiblePoetry().forEach(p => {
+        if (appData.poetryMemory && appData.poetryMemory[p.id]) return;
+        if (isAvailableToday(p)) unP++;
+        else { schP++; if (p.scheduledStart > latestUnlock) latestUnlock = p.scheduledStart; }
+      });
+      visibleWords().forEach(w => {
+        if (appData.wordMemory && appData.wordMemory[w.id]) return;
+        if (isAvailableToday(w)) unW++;
+        else { schW++; if (w.scheduledStart > latestUnlock) latestUnlock = w.scheduledStart; }
+      });
+      (appData.userCards || []).forEach(c => {
+        if (!c.vol || c.vol === currentVolume()) {
+          if (appData.cardMemory && appData.cardMemory[c.id]) return;
+          if (isAvailableToday(c)) unC++;
+          else { schC++; if (c.scheduledStart > latestUnlock) latestUnlock = c.scheduledStart; }
+        }
+      });
       const unTotal = unP + unW + unC;
+      const schTotal = schP + schW + schC;
 
       let html = '';
-      if (unTotal > 0) {
+      if (unTotal + schTotal > 0) {
         const parts = [];
         if (unP) parts.push(`<b>${unP}</b> 篇古诗`);
         if (unW) parts.push(`<b>${unW}</b> 个单词`);
         if (unC) parts.push(`<b>${unC}</b> 张记忆卡`);
+        let sub = '去背诵库挑今天想攻克的内容 →';
+        if (schTotal > 0) sub = `另有 <b>${schTotal}</b> 条已排期，最晚 ${formatMonthDay(latestUnlock)} 解锁`;
         html += `<div class="focus-item summary">
           <span class="focus-item-tag tag-summary">📚 待开始</span>
           <div style="flex:1;">
-            <div class="focus-item-text">背诵库有 ${parts.join(' · ')} 还没开始学</div>
-            <div class="focus-item-sub">去背诵库挑今天想攻克的内容 →</div>
+            <div class="focus-item-text">今天可学 ${parts.join(' · ')}</div>
+            <div class="focus-item-sub">${sub}</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="switchTab('memory')">去背诵库</button>
         </div>`;
       }
 
       if (items.length === 0) {
-        if (unTotal > 0) {
+        if (unTotal + schTotal > 0) {
           container.innerHTML = html;
           return;
         }
@@ -3466,7 +3485,7 @@ words: [
       if (list.length > 0) {
         list.forEach(p => {
           const mem = appData.poetryMemory[p.id];
-          const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已通关毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">下次复习: ${mem.nextReview}</span>`) : `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:var(--accent-orange-light); color:var(--accent-orange); font-weight:600;">待开始</span>`;
+          const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已通关毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">下次复习: ${mem.nextReview}</span>`) : newItemBadge(p);
 
           const lines = p.content.split('\n');
           let contentHtml = '';
@@ -3562,7 +3581,7 @@ words: [
       const mem = appData.wordMemory[w.id];
       const isUserItem = w.id.toString().startsWith('cw_') || w.isDefault === true;
       const isDefaultWord = w.isDefault === true;
-      const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮卡片</span>`) : `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:var(--accent-orange-light); color:var(--accent-orange); font-weight:600;">待开始</span>`;
+      const displayReview = mem ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮卡片</span>`) : newItemBadge(w);
 
       container.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -3631,7 +3650,7 @@ words: [
       const mem = appData.cardMemory[card.id];
       const displayReview = mem
         ? (mem.graduated ? '<span style="color:var(--status-green); font-weight:800;">🎓 已毕业</span>' : `<span style="font-size:12px; color:var(--text-sub);">第 ${mem.stage + 1} 轮复习</span>`)
-        : `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:var(--accent-orange-light); color:var(--accent-orange); font-weight:600;">待开始</span>`;
+        : newItemBadge(card);
 
       const backHtml = (card.back || '').split('\n').map(l => `<div>${l}</div>`).join('');
 
@@ -3737,7 +3756,7 @@ words: [
       const today = getTodayDateStr();
       const all = getAll();
       const due = all.filter(x => { const m = getMem(x); return m && !m.graduated && m.nextReview <= today; });
-      const pending = all.filter(x => !getMem(x)).slice(0, REVIEW_NEW_BATCH);
+      const pending = all.filter(x => !getMem(x) && isAvailableToday(x)).slice(0, REVIEW_NEW_BATCH);
       return due.concat(pending);
     }
 
@@ -4740,6 +4759,31 @@ words: [
       if (vols.indexOf(currentVolume()) >= 0) vsel.value = currentVolume();
     }
 
+    // F4: 批量导入错峰排期 —— 避免一次导入几百条全部涌进「待开始」
+    const STAGING_PER_DAY = 15; // 每批导入后，每天解锁最多 15 条新内容
+    function dateFromOffset(days) {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    }
+    // 是否「今天可学」：无 scheduledStart（旧数据 / 手动新增）一律可用；有则须 <= 今天
+    function isAvailableToday(item) {
+      if (!item.scheduledStart) return true;
+      return item.scheduledStart <= getTodayDateStr();
+    }
+    function formatMonthDay(iso) {
+      const p = (iso || '').split('-');
+      if (p.length < 3) return iso;
+      return parseInt(p[1], 10) + '月' + parseInt(p[2], 10) + '日';
+    }
+    // 背诵库卡片的「未开始」徽标：已排期到未来则显示排期日，否则显示「待开始」
+    function newItemBadge(item) {
+      if (item.scheduledStart && item.scheduledStart > getTodayDateStr()) {
+        return `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:#eef2f6; color:#7a8aa0; font-weight:600;">📅 排期 ${formatMonthDay(item.scheduledStart)}</span>`;
+      }
+      return `<span style="font-size:12px; padding:1px 6px; border-radius:4px; background:var(--accent-orange-light); color:var(--accent-orange); font-weight:600;">待开始</span>`;
+    }
+
     // 将预设写进唯一可背诵库（userPoetry / userWords），同册的旧导入项会被替换
     function handleEditionImport() {
       const ed = document.getElementById('edition-select').value;
@@ -4755,6 +4799,7 @@ words: [
       if (!appData.userWords) appData.userWords = [];
 
       let addedP = 0, addedW = 0;
+      let stageIdx = 0; // F4: 跨诗/词统一排期序号，保证整批导入平滑错峰
       targetVols.forEach(vol => {
         const volData = preset[vol];
         if (!volData) return;
@@ -4764,8 +4809,10 @@ words: [
             appData.userPoetry.push({
               id: 'eid_p_' + vol + '_' + i,
               title: p.title, author: p.author, content: p.content,
-              vol: vol, isDefault: true
+              vol: vol, isDefault: true,
+              scheduledStart: dateFromOffset(Math.floor(stageIdx / STAGING_PER_DAY))
             });
+            stageIdx++;
           });
           addedP += (volData.poetry || []).length;
         }
@@ -4775,8 +4822,10 @@ words: [
             appData.userWords.push({
               id: 'eid_w_' + vol + '_' + i,
               word: w.word, phonetic: w.phonetic, meaning: w.meaning, example: w.example,
-              vol: vol, isDefault: true
+              vol: vol, isDefault: true,
+              scheduledStart: dateFromOffset(Math.floor(stageIdx / STAGING_PER_DAY))
             });
+            stageIdx++;
           });
           addedW += (volData.words || []).length;
         }
@@ -4810,6 +4859,7 @@ words: [
       const vol = currentVolume();
       const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
       let count = 0;
+      let stageIdx = 0; // F4: 粘贴导入也参与错峰排期
       if (type === 'poetry') {
         if (!appData.userPoetry) appData.userPoetry = [];
         lines.forEach((ln, i) => {
@@ -4818,9 +4868,10 @@ words: [
           appData.userPoetry.push({
             id: 'cp_' + Date.now() + '_' + i,
             title: f[0], author: f[1] || '佚名', content: f[2],
-            vol: vol
+            vol: vol,
+            scheduledStart: dateFromOffset(Math.floor(stageIdx / STAGING_PER_DAY))
           });
-          count++;
+          stageIdx++; count++;
         });
       } else {
         if (!appData.userWords) appData.userWords = [];
@@ -4830,9 +4881,10 @@ words: [
           appData.userWords.push({
             id: 'cw_' + Date.now() + '_' + i,
             word: f[0], phonetic: f[1] || '', meaning: f[2], example: f[3] || '',
-            vol: vol
+            vol: vol,
+            scheduledStart: dateFromOffset(Math.floor(stageIdx / STAGING_PER_DAY))
           });
-          count++;
+          stageIdx++; count++;
         });
       }
       if (count === 0) { alert('没有解析到有效条目。请确认格式为「字段 | 字段 | 字段」。'); return; }
