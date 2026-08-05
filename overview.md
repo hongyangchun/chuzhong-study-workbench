@@ -323,3 +323,25 @@ F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ 
 
 ## 进度
 记忆 tab 学习交互收敛为「单一入口 + 三档自评 + 工具栏分离」的清爽结构。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
+
+---
+
+# 「我的成长」tab 合并进「今日」tab
+
+## 背景
+用户实测反馈：今日 tab（仅"今天要处理"焦点板）与成长 tab（仅豆豆/等级/四指标）内容都偏少，两个独立 tab 显得空。注意：成长 tab 原是 A1(commit `621b27b`) 为"解决今日过载"而从今日抽离的；如今艾宾浩斯图已删、今日已瘦身，再合并回去正合适。
+
+## 改动（commit `937fbf2`，已 push，Cloudflare 上线）
+- 成长内容（小芽兽"豆豆" pet-card / 四大学习指标 stat-card / 生成本周战报 PNG 按钮）整体移入 `tab-today`，置于今日焦点板下方。
+- 删除 `tab-growth` 及其在**侧栏 / 平板顶栏 / 移动底栏**三处导航项。
+- `navMap` / `titleMap` 删除 `growth` 项，索引维持 `today0/homework1/memory2/error3`。
+- 安全点：`renderStatsAndPet()` 按元素 id 渲染（stat-streak / pet-svg-wrapper 等），不依赖所在 tab；合并后由 `switchTab('today')` 照常调用刷新，**数据不丢**。
+
+## 验证
+- 内联脚本 `node --check` 通过
+- grep：`switchTab('growth')` = 0、`tab-growth` = 0、`growth-hero` 保留（CSS + 卡片）
+- 线上 curl 经边缘缓存传播（约 45s 延迟）后稳定：`tab-growth=0 / growth-hero=2 / nav-growth=0`
+- 净变更 +3 / −16
+
+## 进度
+导航收敛为 4 个 tab（今日 / 作业 / 记忆 / 错题）。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
