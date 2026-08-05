@@ -701,6 +701,20 @@
       padding-bottom: 8px;
       align-items: center;
     }
+    .mem-sublib-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .mem-sublib-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-sub, #6b7280);
+      letter-spacing: .04em;
+      flex: 0 0 auto;
+    }
     .mem-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -1428,13 +1442,7 @@
         <div class="card">
           <!-- 记忆总览条：数据驱动概览，点芯片跳对应子库+筛选（替代原静态曲线卡） -->
           <div class="mem-overview" id="mem-overview"></div>
-          <div class="memory-tab-header">
-            <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文</button>
-            <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">词汇</button>
-            <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">记忆卡</button>
-          </div>
-
-          <!-- 工具栏：左侧模式开关 + 搜索/筛选，右侧操作 -->
+          <!-- 顶层视图切换：复习（默认）/ 浏览 —— 位于子库选择之上 -->
           <div class="mem-toolbar">
             <div class="mem-mode-toggle">
               <button class="mem-mode-btn active" id="modeReview" onclick="setMemMode('review')">复习 <span id="reviewCount-active">0</span></button>
@@ -1453,6 +1461,16 @@
             </div>
             <div class="mem-actions" id="mem-actions">
               <button class="btn btn-outline btn-sm" onclick="openAddCurrent()" title="新增当前子库的条目">＋ 新增</button>
+            </div>
+          </div>
+
+          <!-- 子库选择：古诗文 / 词汇 / 记忆卡（次级，位于视图切换之下） -->
+          <div class="mem-sublib-row">
+            <span class="mem-sublib-label">子库</span>
+            <div class="memory-tab-header">
+              <button id="memTabPoetry" class="memory-tab-btn active" onclick="switchMemorySubTab('poetry', this)">古诗文</button>
+              <button id="memTabWord" class="memory-tab-btn" onclick="switchMemorySubTab('word', this)">词汇</button>
+              <button id="memTabCard" class="memory-tab-btn" onclick="switchMemorySubTab('card', this)">记忆卡</button>
             </div>
           </div>
 
