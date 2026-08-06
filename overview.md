@@ -420,3 +420,39 @@ F1~F4 ✅ · 记忆 tab IA 三刀 ✅ · 记忆 tab 第一刀(结构精简) ✅ 
 
 ## 进度
 记忆 tab 信息架构定型：视图层（复习/浏览）为顶级，子库层（古诗文/词汇/记忆卡）为次级，内容在最下。下一步候选：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
+
+---
+
+# 记忆 tab 信息架构深度优化（Request G）：跨库汇总 + 入口瘦身 + 默认子库记忆
+
+## 背景
+在「层级修正」(`313ee37`) 之后，用户要求「深入分析记忆 tab 的信息架构，看看有没有优化空间」。给出问题诊断（A–F）+ 改造方案后，经 AskUserQuestion 用户选定 **全部四项** 实施：A 跨库汇总可见 / B 修 chip 冲突 / C 入口屏瘦身 / D 浏览→管理 / E 默认子库记忆。
+
+## 改动（commit `014b0ed`，已 push，Cloudflare 上线）
+
+### A 跨库汇总可见（治本：单库复习漏做）
+- 新增 `getMemStats()`：跨三库（古诗文/词汇/卡）合并计算 `due`(已学且到期) / `grad`(已毕业) / `total`(在库) 与 `ready`(各库今日复习队列长度) / `readyTotal`(三库今日共可复习数) + `streak`(取自 `appData.user.streakDays`)。
+- 重写 `renderReviewBoard()` 头部：在「当前库 N 条待背」副标题下新增 **一行跨库统计**——`X 待复习 / Y 已毕业 / Z 天连击 / K 在库` + 弱化提示「三库今日共 N 条可复习 · 古诗文 a / 词汇 b / 记忆卡 c」。孩子做完一个子库能立刻看到另外两库还有多少，杜绝「做完一个库以为全做完」的隐患。
+- 新增 CSS：`.review-board-head-main`(flex:1) / `.review-stats` / `.review-stat` / `.review-crosslib`。
+
+### B 修 chip 冲突（删双入口）
+- 删除 `renderMemOverview()` 与 `gotoMemFilter(act)` 函数定义，并清掉其在 `renderAll()` 与 `renderMemoryLists()` 末尾的两处孤立调用（否则 ReferenceError）。
+- 根因：原 4 个可点 stat 芯片在默认复习态下是 silent no-op（筛选只在浏览态生效），形成「子 tab + 芯片」双入口且其一失效的冲突。删芯片后「复习看板」与「浏览列表」彻底各归其位，单一入口。
+
+### C 入口屏瘦身
+- 删除顶部 `#mem-overview` 总览条 DOM；移除孤儿 CSS `.mem-overview` / `.mem-chip*`(仅芯片用) / `.mem-sublib-label`(「子库」小标签，本次一并去文字化，保留 `.mem-sublib-row` 包裹)。首屏 chrome 由 多块收敛为「模式切换器 + 子库行 + 复习看板」三层清爽结构。
+
+### D 浏览 → 管理（语义准确）
+- 记忆 tab 模式切换器第二段「浏览」改名「管理」：更准确地表达该态是增删改/搜索筛选的维护入口（与「复习」= 专注背诵流 形成清晰对照）。`modeBrowse` 按钮文案 + 复习看板空态提示同步改为「去『管理』添加或导入」。
+
+### E 默认子库记忆
+- `switchMemorySubTab(sub, btnEl)` 内 `localStorage.setItem('mem_last_sublib', sub)` 记住上次选择；
+- `DOMContentLoaded` init（renderAll 之后）读取 `mem_last_sublib` 并 `switchMemorySubTab(saved, btn)` 恢复——孩子下次打开直接回到上次用的子库，不再每次从「古诗文」开始。
+
+## 验证
+- 内联脚本 `node --check` 通过（208805 字符）
+- grep 确认：`renderMemOverview`/`gotoMemFilter` = 0（已彻底移除）、`getMemStats` = 定义1+调用1、`mem_last_sublib` = 持久化1+恢复1、`review-board-head-main`/`review-crosslib` CSS 已就位
+- 线上 curl 经边缘缓存传播（sleep45 后多轮）：5/6 pass 命中新版本（getMemStats=2/renderMemOverview=0/mem_last_sublib=2/review-crosslib=3）；仅 1 个边缘节点偶发旧版（renderMemOverview=3），属缓存传播延迟，会自行收敛。
+
+## 进度
+记忆 tab 信息架构完成四轮演进：E 双模式 → F 默认复习视角 → 层级修正 → G 跨库汇总+入口瘦身+默认子库。下一步候选仍为：F6 错题标签归因 / F7 周计划 / 架构 A2-A5 / UI D4-D7。
